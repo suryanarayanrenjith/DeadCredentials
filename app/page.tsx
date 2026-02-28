@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import PasswordInput from "@/app/components/PasswordInput";
 import StrengthMeter from "@/app/components/StrengthMeter";
@@ -11,8 +11,10 @@ import ThreatActorProfile from "@/app/components/ThreatActorProfile";
 import CrackTimeVisualizer from "@/app/components/CrackTimeVisualizer";
 import SkullConfetti from "@/app/components/SkullConfetti";
 import BatchProcessor from "@/app/components/BatchProcessor";
+import AnimatedBackground from "@/app/components/AnimatedBackground";
 import type { PasswordCharacteristics } from "@/lib/passwordAnalyzer";
 import { analyzePasswordDNA, type DNASegment } from "@/lib/passwordAnalyzer";
+import { ensurePuterReady } from "@/lib/puterAuth";
 
 type ToneOption = "victorian" | "roast" | "hollywood";
 
@@ -30,14 +32,7 @@ interface GraveyardEntry {
   timestamp: number;
 }
 
-declare const puter: {
-  ai: {
-    chat: (
-      messages: Array<{ role: string; content: string }>,
-      options?: { model?: string; stream?: boolean; temperature?: number }
-    ) => Promise<AsyncIterable<{ text?: string }>>;
-  };
-};
+// Puter global type is declared in lib/puterAuth.ts
 
 /* ── Custom SVG logo (skull + key) ── */
 function LogoSVG() {
@@ -125,7 +120,7 @@ function TypewriterText({ texts }: { texts: string[] }) {
 }
 
 /* ── Password Vault (history) ── */
-function PasswordGraveyard({ entries }: { entries: GraveyardEntry[] }) {
+function PasswordGraveyard({ entries, onClear }: { entries: GraveyardEntry[]; onClear: () => void }) {
   if (entries.length === 0) return null;
 
   return (
@@ -143,6 +138,18 @@ function PasswordGraveyard({ entries }: { entries: GraveyardEntry[] }) {
           </svg>
           <span className="tracking-wide">Password Vault</span>
           <span className="text-[10px] text-[#52525b] ml-auto font-mono">{entries.length} checked</span>
+          <button
+            onClick={onClear}
+            className="ml-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium tracking-wide
+              text-[#71717a] hover:text-[#dc2626] bg-[#18181b] hover:bg-[#dc262610] border border-[#27272a] hover:border-[#dc262640]
+              transition-all duration-200 cursor-pointer"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Clear All
+          </button>
         </h3>
         <div className="space-y-2 max-h-48 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
           {entries.map((entry, i) => (
@@ -527,6 +534,35 @@ export default function Home() {
   const [mode, setMode] = useState<"single" | "batch">("single");
   const bellRef = useRef<HTMLAudioElement | null>(null);
 
+  // Dynamic session stats
+  const deadCount = graveyard.filter((e) => !e.alive).length;
+  const aliveCount = graveyard.filter((e) => e.alive).length;
+  const avgScore = graveyard.length > 0 ? Math.round(graveyard.reduce((s, e) => s + e.score, 0) / graveyard.length) : 0;
+  const lastScore = analysisData?.characteristics.strengthScore ?? null;
+
+  // Contextual security tips based on last analysis
+  const dynamicTips = useMemo(() => {
+    const base = [
+      "Use a password manager for unique passwords on every site",
+      "Enable two-factor authentication wherever possible",
+      "A 16+ character passphrase beats a complex 8-char password",
+      "Never reuse passwords across different accounts",
+    ];
+    if (!analysisData) return base;
+    const c = analysisData.characteristics;
+    const tips: string[] = [];
+    if (!c.hasUppercase) tips.push("Add uppercase letters to increase entropy");
+    if (!c.hasNumbers) tips.push("Including numbers strengthens your password significantly");
+    if (!c.hasSymbols) tips.push("Special characters like @#$% make passwords much harder to crack");
+    if (c.length < 12) tips.push("Aim for 12+ characters — length is your best defense");
+    if (c.isCommon) tips.push("Your password appeared in common password lists — change it immediately");
+    if (c.hasKeyboardPattern) tips.push("Keyboard patterns like 'qwerty' are the first thing attackers try");
+    if (c.hasRepeatingChars) tips.push("Repeating characters weaken your password — diversify your choices");
+    if (c.hasSequentialNumbers) tips.push("Sequential numbers like '123' are trivially guessable");
+    if (analysisData.breachCount > 0) tips.push(`This password appeared in ${analysisData.breachCount.toLocaleString()} breaches — retire it now`);
+    return tips.length > 0 ? tips : base;
+  }, [analysisData]);
+
   /** Funeral bell — low, somber tone */
   const playDeathBell = useCallback(() => {
     try {
@@ -637,11 +673,9 @@ export default function Home() {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 5000);
 
-        if (typeof puter === "undefined") {
-          throw new Error("AI service is still loading. Please try again in a moment.");
-        }
+        await ensurePuterReady();
 
-        const stream = await puter.ai.chat(
+        const stream = await puter!.ai.chat(
           [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -674,6 +708,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center px-4 py-16 md:py-24 overflow-hidden">
+      {/* Animated canvas background */}
+      <AnimatedBackground />
+
       {/* Skull Confetti on password death */}
       <SkullConfetti active={showConfetti} duration={4000} />
 
@@ -690,6 +727,38 @@ export default function Home() {
 
       {/* Vignette overlay */}
       <div className="fixed inset-0 pointer-events-none vignette-overlay" aria-hidden="true" />
+
+      {/* Live Threat Level Indicator */}
+      <AnimatePresence>
+        {lastScore !== null && (
+          <motion.div
+            className="fixed top-0 left-0 right-0 z-50 h-[3px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <motion.div
+              className="h-full"
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                background: lastScore >= 80
+                  ? "linear-gradient(90deg, #10b981, #34d399, #10b981)"
+                  : lastScore >= 50
+                  ? "linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)"
+                  : "linear-gradient(90deg, #dc2626, #ef4444, #dc2626)",
+                boxShadow: lastScore >= 80
+                  ? "0 0 12px #10b98180"
+                  : lastScore >= 50
+                  ? "0 0 12px #f59e0b80"
+                  : "0 0 12px #dc262680",
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Header */}
       <motion.div
@@ -719,11 +788,11 @@ export default function Home() {
           />
         </div>
 
-        {/* Live counter */}
+        {/* Live counter + session stats */}
         <AnimatePresence>
           {totalChecked > 0 && (
             <motion.div
-              className="mt-3.5"
+              className="mt-3.5 flex flex-col items-center gap-2"
               initial={{ opacity: 0, y: 8, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -733,6 +802,26 @@ export default function Home() {
                 <span className="w-1.5 h-1.5 rounded-full bg-[#dc2626] animate-pulse" />
                 {totalChecked} password{totalChecked !== 1 ? "s" : ""} checked
               </span>
+              {graveyard.length > 0 && (
+                <motion.div
+                  className="flex items-center gap-3 text-[9px] font-mono tracking-wider"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <span className="flex items-center gap-1 text-[#dc2626]">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>
+                    {deadCount} dead
+                  </span>
+                  <span className="text-[#27272a]">|</span>
+                  <span className="flex items-center gap-1 text-[#10b981]">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    {aliveCount} alive
+                  </span>
+                  <span className="text-[#27272a]">|</span>
+                  <span className="text-[#71717a]">avg: {avgScore}/100</span>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -783,7 +872,7 @@ export default function Home() {
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           >
-            <BatchProcessor visible={true} />
+            <BatchProcessor visible={true} tone={tone} setTone={setTone} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -960,7 +1049,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <PasswordGraveyard entries={graveyard} />
+            <PasswordGraveyard entries={graveyard} onClear={() => { setGraveyard([]); setTotalChecked(0); }} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -968,9 +1057,36 @@ export default function Home() {
       {/* Hidden audio element */}
       <audio ref={bellRef} preload="none" />
 
+      {/* Security Tips Ticker */}
+      <AnimatePresence>
+        {analysisData && (
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-40 overflow-hidden"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="bg-[#0c0c0f]/90 backdrop-blur-md border-t border-[#1e1e24] py-2">
+              <div className="ticker-scroll flex items-center gap-8 whitespace-nowrap">
+                {[...dynamicTips, ...dynamicTips].map((tip, i) => (
+                  <span key={i} className="inline-flex items-center gap-2 text-[10px] font-mono text-[#52525b] tracking-wide">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#dc262660" strokeWidth="2" strokeLinecap="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    {tip}
+                    <span className="text-[#dc262630] mx-2">///</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Footer */}
       <motion.footer
-        className="mt-20 mb-8 text-center relative z-10"
+        className="mt-20 mb-12 text-center relative z-10"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.5 }}
@@ -978,11 +1094,25 @@ export default function Home() {
         <div className="h-px w-40 mx-auto bg-gradient-to-r from-transparent via-[#dc262640] to-transparent mb-6" />
         <div className="flex items-center justify-center gap-2 text-[11px] text-[#71717a] tracking-wide">
           <span>Built with</span>
-          <span className="text-[#dc2626]">♥</span>
+          <span className="text-[#dc2626]">&#9829;</span>
           <span>using Next.js</span>
-          <span className="text-[#dc262660]">•</span>
+          <span className="text-[#dc262660]">&bull;</span>
           <span>Powered by HIBP & Puter AI</span>
         </div>
+        {graveyard.length > 0 && (
+          <motion.div
+            className="mt-4 flex items-center justify-center gap-4 text-[9px] font-mono text-[#3f3f46] tracking-wider"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+          >
+            <span>SESSION: {totalChecked} analyzed</span>
+            <span className="text-[#27272a]">|</span>
+            <span>MORTALITY: {totalChecked > 0 ? Math.round((deadCount / totalChecked) * 100) : 0}%</span>
+            <span className="text-[#27272a]">|</span>
+            <span>AVG STRENGTH: {avgScore}/100</span>
+          </motion.div>
+        )}
       </motion.footer>
     </main>
   );

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { validatePasswordInput } from "@/lib/passwordValidator";
 
 interface PasswordInputProps {
   onSubmit: (password: string) => void;
@@ -11,11 +12,23 @@ interface PasswordInputProps {
 export default function PasswordInput({ onSubmit, isLoading }: PasswordInputProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  const validation = useMemo(() => validatePasswordInput(password), [password]);
+  const showError = touched && password.length > 0 && !validation.valid;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.trim() && !isLoading) {
+    setTouched(true);
+    if (validation.valid && !isLoading) {
       onSubmit(password);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+    if (!touched && e.target.value.length > 2) {
+      setTouched(true);
     }
   };
 
@@ -37,7 +50,8 @@ export default function PasswordInput({ onSubmit, isLoading }: PasswordInputProp
           <input
             type={showPassword ? "text" : "password"}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={handleChange}
+            onBlur={() => setTouched(true)}
             placeholder="Enter a password to analyze..."
             className="flex-1 bg-transparent outline-none text-[#e8e8ea] placeholder:text-[#52525b] py-2.5 text-base tracking-wide"
             autoComplete="off"
@@ -68,13 +82,35 @@ export default function PasswordInput({ onSubmit, isLoading }: PasswordInputProp
             )}
           </button>
         </div>
+
+        {/* Validation feedback */}
+        <AnimatePresence>
+          {showError && (
+            <motion.div
+              className="flex items-center gap-2 mt-2.5 px-3.5"
+              initial={{ opacity: 0, y: -6, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -6, height: 0 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span className="text-[11px] text-[#f59e0b] font-medium tracking-wide">
+                {validation.reason}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <motion.button
         type="submit"
-        disabled={!password.trim() || isLoading}
-        whileHover={!isLoading && password.trim() ? { scale: 1.02, y: -2 } : {}}
-        whileTap={!isLoading && password.trim() ? { scale: 0.98 } : {}}
+        disabled={!validation.valid || isLoading}
+        whileHover={!isLoading && validation.valid ? { scale: 1.02, y: -2 } : {}}
+        whileTap={!isLoading && validation.valid ? { scale: 0.98 } : {}}
         className="mt-5 w-full py-3.5 px-6 bg-gradient-to-b from-[#dc2626] to-[#b91c1c] hover:from-[#ef4444] hover:to-[#dc2626] disabled:opacity-30 disabled:cursor-not-allowed
           border border-[#dc262660] rounded-2xl text-white font-semibold text-[15px]
           transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer

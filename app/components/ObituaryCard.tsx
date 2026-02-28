@@ -474,7 +474,7 @@ export default function ObituaryCard({
           <button
             onClick={handleDownloadPNG}
             disabled={shareState === "capturing"}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[#dc2626] hover:bg-[#b91c1c] text-white text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer btn-glow disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-[#dc2626] hover:bg-[#b91c1c] text-white text-xs font-semibold rounded-xl transition-all duration-300 cursor-pointer disabled:opacity-50 shadow-[0_0_16px_#dc262625] hover:shadow-[0_0_24px_#dc262640] active:scale-[0.98]"
           >
             {shareState === "capturing" ? (
               <>
@@ -486,14 +486,18 @@ export default function ObituaryCard({
               </>
             ) : shareState === "done" ? (
               <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 Saved!
               </>
             ) : (
               <>
-                <span className="text-sm">&#x2B07;</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
                 Download PNG
               </>
             )}
@@ -530,7 +534,7 @@ export default function ObituaryCard({
             </li>
             <li className="flex items-start gap-2.5">
               <span className="text-[#dc2626] mt-0.5 text-[10px]">&#x25B8;</span>
-              <span>Use a <strong className="text-[#d4d4d8]">passphrase</strong> — combine random, unrelated words</span>
+              <span>Use a <strong className="text-[#d4d4d8]">passphrase</strong> combine random, unrelated words</span>
             </li>
             <li className="flex items-start gap-2.5">
               <span className="text-[#dc2626] mt-0.5 text-[10px]">&#x25B8;</span>

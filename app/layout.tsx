@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DeadCredentials — Password Obituary Generator",
+  title: "DeadCredentials - Password Obituary Generator",
   description:
     "Enter a password and receive its dramatic obituary. Check if it has been breached and discover its cause of death.",
   keywords: ["password", "security", "obituary", "breach", "cybersecurity", "HIBP"],

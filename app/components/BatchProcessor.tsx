@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ensurePuterReady } from "@/lib/puterAuth";
+
+// Puter global type is declared in lib/puterAuth.ts
 
 interface BatchResult {
   password: string;
@@ -13,8 +16,12 @@ interface BatchResult {
   alive: boolean;
 }
 
+type ToneOption = "victorian" | "roast" | "hollywood";
+
 interface BatchProcessorProps {
   visible: boolean;
+  tone: ToneOption;
+  setTone: (t: ToneOption) => void;
 }
 
 function maskPassword(password: string): string {
@@ -26,13 +33,17 @@ function maskPassword(password: string): string {
   return first + middle + last;
 }
 
-export default function BatchProcessor({ visible }: BatchProcessorProps) {
+export default function BatchProcessor({ visible, tone, setTone }: BatchProcessorProps) {
   const [results, setResults] = useState<BatchResult[]>([]);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [summary, setSummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryStreaming, setSummaryStreaming] = useState(false);
+  const summaryGenerated = useRef(false);
 
   const processPasswords = useCallback(async (passwords: string[]) => {
     const unique = [...new Set(passwords.filter((p) => p.trim().length > 0))];
@@ -48,6 +59,8 @@ export default function BatchProcessor({ visible }: BatchProcessorProps) {
     setProcessing(true);
     setError("");
     setResults([]);
+    setSummary("");
+    summaryGenerated.current = false;
     setProgress({ current: 0, total: unique.length });
 
     const batchResults: BatchResult[] = [];
@@ -60,7 +73,7 @@ export default function BatchProcessor({ visible }: BatchProcessorProps) {
         const response = await fetch("/api/check-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password, tone: "victorian" }),
+          body: JSON.stringify({ password, tone }),
         });
 
         if (response.ok) {
@@ -106,7 +119,84 @@ export default function BatchProcessor({ visible }: BatchProcessorProps) {
     }
 
     setProcessing(false);
-  }, []);
+  }, [tone]);
+
+  // Auto-generate summary when processing completes
+  const generateSummary = useCallback(async (batchResults: BatchResult[]) => {
+    if (batchResults.length === 0) return;
+    setSummaryLoading(true);
+    setSummaryStreaming(true);
+    setSummary("");
+
+    const alive = batchResults.filter((r) => r.alive).length;
+    const dead = batchResults.filter((r) => !r.alive).length;
+    const avg = Math.round(batchResults.reduce((s, r) => s + r.score, 0) / batchResults.length);
+    const totalBreaches = batchResults.reduce((s, r) => s + Math.max(r.breachCount, 0), 0);
+    const weakest = [...batchResults].sort((a, b) => a.score - b.score).slice(0, 3);
+    const strongest = [...batchResults].sort((a, b) => b.score - a.score).slice(0, 3);
+
+    const toneGuide: Record<ToneOption, string> = {
+      victorian: "Write in an ornate Victorian-era eulogy style. Use flowery, dramatic prose with archaic phrases. Be theatrically mournful for the dead passwords and grandly celebratory for the survivors.",
+      roast: "Write as a savage comedy roast. Be brutally funny, sarcastic, and merciless in mocking weak passwords. Celebrate strong ones with backhanded compliments. Use modern slang and humor.",
+      hollywood: "Write as a dramatic Hollywood movie narrator. Use epic, cinematic language. Make it sound like a blockbuster movie trailer script. Add dramatic pauses and tension.",
+    };
+
+    const systemPrompt = `You are a password security analyst who writes batch audit summaries. ${toneGuide[tone]} Keep the summary to 3-5 paragraphs. Use markdown formatting (bold, italic). Do NOT use headers or bullet points.`;
+
+    const userPrompt = `Write a batch obituary/summary for a password audit with these results:
+
+- Total passwords analyzed: ${batchResults.length}
+- Alive (strong & unbreached): ${alive}
+- Dead (weak or breached): ${dead}
+- Average strength score: ${avg}/100
+- Total breach appearances: ${totalBreaches.toLocaleString()}
+- Mortality rate: ${Math.round((dead / batchResults.length) * 100)}%
+
+Weakest passwords (masked): ${weakest.map((w) => `${w.masked} (score: ${w.score}, breaches: ${w.breachCount >= 0 ? w.breachCount.toLocaleString() : "N/A"}, cause: ${w.deathCause})`).join("; ")}
+
+Strongest passwords (masked): ${strongest.map((s) => `${s.masked} (score: ${s.score})`).join("; ")}
+
+Write the summary now.`;
+
+    try {
+      await ensurePuterReady();
+
+      const stream = await puter!.ai.chat(
+        [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        {
+          model: "gemini-2.0-flash",
+          stream: true,
+          temperature: 0.85,
+        }
+      );
+
+      let fullText = "";
+      for await (const part of stream) {
+        if (part?.text) {
+          fullText += part.text;
+          setSummary(fullText);
+        }
+      }
+      setSummaryStreaming(false);
+    } catch (err) {
+      console.error("Summary generation error:", err);
+      setSummary("*Summary generation failed. Your batch results are still available above.*");
+      setSummaryStreaming(false);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [tone]);
+
+  // Trigger summary generation when processing finishes
+  useEffect(() => {
+    if (!processing && results.length > 0 && !summaryGenerated.current && !summary) {
+      summaryGenerated.current = true;
+      generateSummary(results);
+    }
+  }, [processing, results, summary, generateSummary]);
 
   const handleFile = useCallback(
     (file: File) => {
@@ -210,6 +300,34 @@ export default function BatchProcessor({ visible }: BatchProcessorProps) {
           <h3 className="text-sm font-semibold text-[#e8e8ea] tracking-wide">Batch Password Audit</h3>
           <span className="text-[9px] text-[#52525b] ml-auto font-mono uppercase tracking-wider">CSV / TXT</span>
         </div>
+
+        {/* Tone Selector for Batch */}
+        {!processing && results.length === 0 && (
+          <div className="mb-4">
+            <div className="text-[10px] text-[#52525b] uppercase tracking-wider font-mono mb-2">Obituary Tone</div>
+            <div className="flex gap-2">
+              {[
+                { value: "victorian" as ToneOption, label: "Victorian", icon: "🪶", desc: "Elegant & formal" },
+                { value: "roast" as ToneOption, label: "Roast", icon: "🔥", desc: "Brutally funny" },
+                { value: "hollywood" as ToneOption, label: "Hollywood", icon: "🎬", desc: "Dramatic & epic" },
+              ].map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setTone(t.value)}
+                  className={`flex-1 py-2 px-2.5 rounded-xl text-center transition-all duration-200 cursor-pointer border ${
+                    tone === t.value
+                      ? "bg-[#dc262612] border-[#dc262640] text-[#e8e8ea]"
+                      : "bg-[#111114] border-[#1e1e24] text-[#71717a] hover:border-[#2a2a34]"
+                  }`}
+                >
+                  <div className="text-sm">{t.icon}</div>
+                  <div className="text-[10px] font-medium mt-0.5">{t.label}</div>
+                  <div className="text-[8px] text-[#52525b] mt-0.5">{t.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Upload Zone */}
         {!processing && results.length === 0 && (
@@ -393,12 +511,93 @@ export default function BatchProcessor({ visible }: BatchProcessorProps) {
                   setResults([]);
                   setProgress({ current: 0, total: 0 });
                   setError("");
+                  setSummary("");
+                  summaryGenerated.current = false;
                 }}
                 className="py-2.5 px-4 bg-[#111114] border border-[#1e1e24] rounded-xl text-xs text-[#71717a] font-medium hover:border-[#2a2a34] hover:bg-[#18181c] transition-all duration-200 cursor-pointer"
               >
                 New Batch
               </button>
             </div>
+
+            {/* Batch Obituary Summary */}
+            <AnimatePresence>
+              {(summaryLoading || summary) && (
+                <motion.div
+                  className="mt-2"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <div className="bg-[#0c0c0f] border border-[#1e1e24] rounded-2xl p-5 relative overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                      </svg>
+                      <span className="text-xs font-semibold text-[#e8e8ea] tracking-wide">Batch Obituary</span>
+                      <span className="text-[8px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full border ml-auto"
+                        style={{
+                          color: tone === "victorian" ? "#a78bfa" : tone === "roast" ? "#f97316" : "#60a5fa",
+                          borderColor: tone === "victorian" ? "#a78bfa30" : tone === "roast" ? "#f9731630" : "#60a5fa30",
+                          backgroundColor: tone === "victorian" ? "#a78bfa08" : tone === "roast" ? "#f9731608" : "#60a5fa08",
+                        }}
+                      >
+                        {tone}
+                      </span>
+                    </div>
+
+                    {/* Summary content */}
+                    {summaryLoading && !summary ? (
+                      <div className="flex items-center gap-3 py-6 justify-center">
+                        <svg className="animate-spin h-4 w-4 text-[#dc2626]" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        <span className="text-[11px] text-[#71717a] animate-pulse">Composing batch obituary...</span>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <div
+                          className="text-[12px] leading-[1.8] text-[#a1a1aa] whitespace-pre-wrap"
+                          style={{ fontFamily: "var(--font-obituary, Georgia, serif)" }}
+                          dangerouslySetInnerHTML={{
+                            __html: summary
+                              .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[#e8e8ea]">$1</strong>')
+                              .replace(/\*(.+?)\*/g, '<em class="text-[#d4d4d8]">$1</em>')
+                              .replace(/\n\n/g, '</p><p class="mt-3">')
+                              .replace(/^/, '<p>')
+                              .replace(/$/, '</p>'),
+                          }}
+                        />
+                        {summaryStreaming && (
+                          <span className="inline-block w-[2px] h-[14px] bg-[#dc2626] ml-0.5 animate-pulse align-middle" />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Regenerate button */}
+                    {!summaryLoading && summary && (
+                      <button
+                        onClick={() => {
+                          setSummary("");
+                          generateSummary(results);
+                        }}
+                        className="mt-4 w-full py-2 px-3 rounded-xl text-[10px] font-medium text-[#71717a] border border-[#1e1e24] hover:border-[#2a2a34] hover:text-[#a1a1aa] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="23 4 23 10 17 10" />
+                          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                        </svg>
+                        Regenerate Summary
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 

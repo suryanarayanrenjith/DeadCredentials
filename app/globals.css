@@ -804,3 +804,17 @@ html {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ========== Security Tips Ticker ========== */
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-scroll {
+  animation: ticker 30s linear infinite;
+}
+
+.ticker-scroll:hover {
+  animation-play-state: paused;
+}

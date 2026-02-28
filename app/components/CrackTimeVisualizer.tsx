@@ -70,14 +70,25 @@ function getHistoricalRef(seconds: number): string {
 }
 
 function getTimelineBarConfig(seconds: number): { fillDuration: number; fillPercent: number; showInfinity: boolean; flashFill: boolean } {
-  if (seconds < 1) return { fillDuration: 0.3, fillPercent: 100, showInfinity: false, flashFill: true };
-  if (seconds < 60) return { fillDuration: 1.5, fillPercent: 100, showInfinity: false, flashFill: false };
-  if (seconds < 3600) return { fillDuration: 2.5, fillPercent: 85, showInfinity: false, flashFill: false };
-  if (seconds < 86400) return { fillDuration: 3, fillPercent: 65, showInfinity: false, flashFill: false };
-  if (seconds < 31536000) return { fillDuration: 3, fillPercent: 40, showInfinity: false, flashFill: false };
-  const years = seconds / 31536000;
-  if (years < 100) return { fillDuration: 4, fillPercent: 15, showInfinity: false, flashFill: false };
-  return { fillDuration: 6, fillPercent: 3, showInfinity: true, flashFill: false };
+  // Logarithmic scale: maps crack time smoothly across the bar
+  // log10 range: -1 (0.1s) to ~16 (trillions of years) → 2% to 100%
+  if (seconds <= 0) return { fillDuration: 0.3, fillPercent: 2, showInfinity: false, flashFill: true };
+
+  const log = Math.log10(Math.max(seconds, 0.1));
+  // Map log10 range [-1 .. 15] → [2% .. 100%]
+  const pct = Math.min(100, Math.max(2, ((log + 1) / 16) * 98 + 2));
+  const isInstant = seconds < 1;
+  const isForever = seconds > 1e15; // ~31M+ years
+
+  // Animation duration scales with fill amount
+  const dur = isInstant ? 0.3 : Math.min(3.5, 0.8 + (pct / 100) * 2.5);
+
+  return {
+    fillDuration: dur,
+    fillPercent: Math.round(pct * 10) / 10,
+    showInfinity: isForever,
+    flashFill: isInstant,
+  };
 }
 
 function getBarColor(seconds: number): string {
@@ -94,7 +105,7 @@ function getBarColor(seconds: number): string {
 export default function CrackTimeVisualizer({ crackTime, score, visible }: CrackTimeVisualizerProps) {
   const [barWidth, setBarWidth] = useState(0);
   const [showFlash, setShowFlash] = useState(false);
-  const hasAnimated = useRef(false);
+  const prevCrackTime = useRef(crackTime);
 
   const seconds = useMemo(() => crackTimeToSeconds(crackTime), [crackTime]);
   const realTime = useMemo(() => getRealTimeRef(seconds), [seconds]);
@@ -104,25 +115,35 @@ export default function CrackTimeVisualizer({ crackTime, score, visible }: Crack
   const barColor = useMemo(() => getBarColor(seconds), [seconds]);
 
   useEffect(() => {
-    if (visible && !hasAnimated.current) {
-      hasAnimated.current = true;
-
-      if (config.flashFill) {
-        setShowFlash(true);
-        setBarWidth(config.fillPercent);
-        const timer = setTimeout(() => setShowFlash(false), 600);
-        return () => clearTimeout(timer);
-      }
-
-      const timer = setTimeout(() => setBarWidth(config.fillPercent), 200);
-      return () => clearTimeout(timer);
-    }
     if (!visible) {
-      hasAnimated.current = false;
+      setBarWidth(0);
+      setShowFlash(false);
+      return;
+    }
+
+    // Reset bar to 0 first so the animation replays on every new crack time
+    const isNewCrack = prevCrackTime.current !== crackTime;
+    prevCrackTime.current = crackTime;
+
+    if (isNewCrack) {
       setBarWidth(0);
       setShowFlash(false);
     }
-  }, [visible, config]);
+
+    // Animate to target after a brief reset gap
+    const delay = isNewCrack ? 150 : 200;
+    const timer = setTimeout(() => {
+      if (config.flashFill) {
+        setShowFlash(true);
+        setBarWidth(config.fillPercent);
+        setTimeout(() => setShowFlash(false), 600);
+      } else {
+        setBarWidth(config.fillPercent);
+      }
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [visible, crackTime, config]);
 
   if (!visible) return null;
 

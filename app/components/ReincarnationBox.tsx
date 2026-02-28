@@ -4,15 +4,9 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { PasswordCharacteristics } from "@/lib/passwordAnalyzer";
 import { analyzePassword } from "@/lib/passwordAnalyzer";
+import { ensurePuterReady } from "@/lib/puterAuth";
 
-declare const puter: {
-  ai: {
-    chat: (
-      messages: Array<{ role: string; content: string }>,
-      options?: { model?: string; stream?: boolean; temperature?: number }
-    ) => Promise<AsyncIterable<{ text?: string }> | { message?: { content?: string } }>;
-  };
-};
+// Puter global type is declared in lib/puterAuth.ts
 
 // ── Theme detection ──
 const ANIMAL_WORDS = new Set([
@@ -164,11 +158,9 @@ export default function ReincarnationBox({
       const { systemPrompt, userPrompt } = await response.json();
 
       // 2. Use Puter.js to generate (non-streaming for JSON parsing)
-      if (typeof puter === "undefined") {
-        throw new Error("AI service is still loading. Please try again.");
-      }
+      await ensurePuterReady();
 
-      const result = await puter.ai.chat(
+      const result = await puter!.ai.chat(
         [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -446,9 +438,13 @@ export default function ReincarnationBox({
                 setExplanation("");
                 setNewScore(null);
               }}
-              className="w-full mt-2 py-2.5 px-4 rounded-xl text-xs font-medium text-[#8b7a4a] border border-[#f59e0b15] hover:border-[#f59e0b30] hover:text-[#f59e0b] transition-all duration-200 cursor-pointer"
+              className="w-full mt-2 py-2.5 px-4 rounded-xl text-xs font-medium text-[#8b7a4a] border border-[#f59e0b15] hover:border-[#f59e0b30] hover:text-[#f59e0b] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2"
             >
-              🔄 Try another reincarnation
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              Try another reincarnation
             </button>
           </motion.div>
         )}
