@@ -1,6 +1,6 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ─── Dependencies ────────────────────────────────────────────────────────────
 /node_modules
 /.pnp
 .pnp.*
@@ -10,32 +10,75 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# ─── Next.js ─────────────────────────────────────────────────────────────────
 /.next/
 /out/
 
-# production
+# ─── Production build ────────────────────────────────────────────────────────
 /build
+/dist
 
-# misc
-.DS_Store
-*.pem
+# ─── Testing & Coverage ──────────────────────────────────────────────────────
+/coverage
+/.nyc_output
 
-# debug
+# ─── Environment variables ───────────────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# ─── Debug logs ──────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
+# ─── TypeScript ──────────────────────────────────────────────────────────────
 *.tsbuildinfo
 next-env.d.ts
+
+# ─── Vercel ──────────────────────────────────────────────────────────────────
+.vercel
+
+# ─── OS artifacts ────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ─── Editor & IDE ────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+
+# ─── Security — never commit secrets ─────────────────────────────────────────
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.crt
+secrets/
+.secrets
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.tgz
+*.zip
+.cache/
+tmp/
+temp/

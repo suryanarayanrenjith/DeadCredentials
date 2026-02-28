@@ -1,26 +1,806 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: #08080a;
+  --color-foreground: #e8e8ea;
+  --color-surface: #111114;
+  --color-surface-hover: #18181c;
+  --color-surface-alt: #0e0e11;
+  --color-border: #1e1e24;
+  --color-border-glow: #dc262640;
+  --color-accent: #dc2626;
+  --color-accent-dim: #991b1b;
+  --color-accent-glow: #dc262620;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #10b981;
+  --color-muted: #52525b;
+  --color-muted-light: #71717a;
+  --color-obituary-bg: #0c0c0f;
+  --color-obituary-text: #d4d4d8;
+  --color-obituary-border: #dc262630;
+  --color-obituary-header: #dc2626;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: "Georgia", "Times New Roman", serif;
+  --font-obituary: "Palatino Linotype", "Book Antiqua", Palatino, "Georgia", serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e1e24 transparent;
+}
+
+::selection {
+  background: #dc262640;
+  color: #fff;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, #dc262610 0%, transparent 70%),
+    radial-gradient(circle at 20% 80%, #dc262606 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, #dc262604 0%, transparent 40%),
+    radial-gradient(circle at 50% 100%, #dc262605 0%, transparent 50%);
+}
+
+/* ========== Cyber Grid Background ========== */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(220, 38, 38, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(220, 38, 38, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 20%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 20%, transparent 80%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ========== Ambient Glow Pulse (replaces intrusive scan line) ========== */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 120% 40% at 50% 0%, #dc262608 0%, transparent 60%),
+    radial-gradient(ellipse 100% 30% at 50% 100%, #dc262606 0%, transparent 50%);
+  animation: ambientPulse 12s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes ambientPulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+/* ========== Vignette Overlay ========== */
+.vignette-overlay {
+  background: radial-gradient(ellipse at center, transparent 50%, #08080a 100%);
+  opacity: 0.5;
+  z-index: 1;
+}
+
+/* ========== Floating Particles ========== */
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: #dc2626;
+  opacity: 0;
+  animation: particleFloat 12s ease-in-out infinite;
+}
+
+.particle-1 { width: 3px; height: 3px; left: 10%; animation-delay: 0s; animation-duration: 14s; }
+.particle-2 { width: 2px; height: 2px; left: 30%; animation-delay: 2s; animation-duration: 11s; }
+.particle-3 { width: 4px; height: 4px; left: 55%; animation-delay: 4s; animation-duration: 16s; }
+.particle-4 { width: 2px; height: 2px; left: 75%; animation-delay: 6s; animation-duration: 13s; }
+.particle-5 { width: 3px; height: 3px; left: 90%; animation-delay: 8s; animation-duration: 15s; }
+.particle-6 { width: 2px; height: 2px; left: 20%; animation-delay: 3s; animation-duration: 17s; }
+.particle-7 { width: 3px; height: 3px; left: 65%; animation-delay: 7s; animation-duration: 12s; }
+
+@keyframes particleFloat {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 0.15; }
+  50% { opacity: 0.08; }
+  90% { opacity: 0.12; }
+  100% { transform: translateY(-20vh) scale(1); opacity: 0; }
+}
+
+/* ========== Obituary Card ========== */
+.obituary-card {
+  background: linear-gradient(145deg, #12100d 0%, #0f0d0a 40%, #100e0b 100%);
+  color: #c4b599;
+  font-family: var(--font-obituary);
+  border: 1px solid #8b691420;
+  position: relative;
+  box-shadow:
+    0 0 60px #8b691408,
+    0 25px 50px -12px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 #8b691410,
+    inset 0 -1px 0 #00000040;
+}
+
+.obituary-card::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid #8b691412;
+  pointer-events: none;
+  border-radius: 6px;
+}
+
+/* Aged border effect — multi-layer worn edges */
+.obituary-aged-border {
+  position: relative;
+  background-image:
+    radial-gradient(ellipse at top left, #8b691408 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, #8b691406 0%, transparent 50%),
+    radial-gradient(ellipse at top right, #1a150e 0%, transparent 30%),
+    radial-gradient(ellipse at bottom left, #1a150e 0%, transparent 30%);
+}
+
+.obituary-aged-border::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(to right, #8b691410 0%, transparent 3%, transparent 97%, #8b691410 100%),
+    linear-gradient(to bottom, #8b691410 0%, transparent 3%, transparent 97%, #8b691410 100%);
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+.obituary-gazette-title {
+  font-family: var(--font-obituary);
+  text-shadow: 0 0 20px #8b691415;
+}
+
+/* ========== Survival Card ========== */
+.survival-card {
+  background: #0a1210;
+  color: var(--color-obituary-text);
+  font-family: var(--font-serif);
+  border: 1px solid #10b98130;
+  position: relative;
+  box-shadow:
+    0 0 40px #10b98108,
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 #ffffff06;
+}
+
+.survival-card::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid #10b98115;
+  pointer-events: none;
+  border-radius: 6px;
+}
+
+/* ========== Obituary Text Formatting ========== */
+.obituary-text {
+  font-family: var(--font-obituary);
+  font-size: 0.92rem;
+  line-height: 1.85;
+  color: #c4b599;
+  letter-spacing: 0.01em;
+}
+
+.obituary-text strong,
+.obituary-text b {
+  color: #f5e6c8;
+  font-weight: 700;
+}
+
+.obituary-text em,
+.obituary-text i {
+  color: #a89878;
+  font-style: italic;
+}
+
+.obituary-title {
+  font-family: var(--font-obituary);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #c9302c;
+  text-align: center;
+  letter-spacing: 0.06em;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #8b691420;
+  text-shadow: 0 0 30px #c9302c15;
+}
+
+.obituary-paragraph {
+  margin-bottom: 1.1rem;
+  text-indent: 1.5em;
+}
+
+.obituary-paragraph:first-of-type {
+  text-indent: 0;
+}
+
+.obituary-paragraph:first-of-type::first-letter {
+  font-size: 2em;
+  font-weight: 700;
+  color: #c9302c;
+  float: left;
+  line-height: 0.8;
+  padding-right: 0.15em;
+  padding-top: 0.08em;
+  font-family: var(--font-obituary);
+}
+
+.obituary-paragraph:first-letter {
+  font-size: 1.15em;
+  font-weight: 600;
+  color: #f5e6c8;
+}
+
+/* ========== Core Animations ========== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ========== Float Animations ========== */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float-slow {
+  animation: floatSlow 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-8px) rotate(1deg); }
+  75% { transform: translateY(-4px) rotate(-1deg); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* ========== Text Shimmer ========== */
+@keyframes textShimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.animate-text-shimmer {
+  background: linear-gradient(90deg, #dc2626 0%, #ff6b6b 25%, #dc2626 50%, #ff4444 75%, #dc2626 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 4s linear infinite;
+}
+
+.animate-text-shimmer-green {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 25%, #10b981 50%, #6ee7b7 75%, #10b981 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: textShimmer 4s linear infinite;
+}
+
+/* ========== Shake Animation ========== */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* ========== Gravestone & Shield ========== */
+@keyframes crack {
+  0% { opacity: 0; stroke-dasharray: 100; stroke-dashoffset: 100; }
+  100% { opacity: 1; stroke-dashoffset: 0; }
+}
+
+.gravestone-crack {
+  animation: crack 1.2s ease-out forwards;
+}
+
+@keyframes shieldCheck {
+  0% { stroke-dasharray: 40; stroke-dashoffset: 40; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.shield-check {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: shieldCheck 0.8s ease-out 0.3s forwards;
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.8); }
+}
+
+.sparkle-1 { animation: sparkle 2s ease-in-out 0.5s infinite; }
+.sparkle-2 { animation: sparkle 2s ease-in-out 1s infinite; }
+.sparkle-3 { animation: sparkle 2s ease-in-out 1.5s infinite; }
+
+/* ========== Health Bar ========== */
+@keyframes drain {
+  from { width: 100%; }
+}
+
+.health-bar-drain {
+  animation: drain 1.5s ease-out forwards;
+}
+
+/* ========== Skeleton Loader ========== */
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-pulse {
+  animation: skeletonPulse 1.8s ease-in-out infinite, skeletonShimmer 2.5s linear infinite;
+  background: linear-gradient(90deg, #18181c 25%, #dc262612 50%, #18181c 75%);
+  background-size: 200% 100%;
+}
+
+/* ========== Glow Effects ========== */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 20px #dc262610; }
+  50% { box-shadow: 0 0 40px #dc262620, 0 0 80px #dc262608; }
+}
+
+.glow-pulse {
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+@keyframes glowPulseGreen {
+  0%, 100% { box-shadow: 0 0 8px #10b98115; }
+  50% { box-shadow: 0 0 16px #10b98125; }
+}
+
+.animate-pulse-glow-green {
+  animation: glowPulseGreen 2s ease-in-out infinite;
+}
+
+/* ========== Cursor ========== */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: cursorBlink 0.8s step-end infinite;
+}
+
+/* ========== Count Up ========== */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count-up {
+  animation: countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ========== Gradient Borders ========== */
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #dc262640, transparent 40%, transparent 60%, #dc262620);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.gradient-border-green {
+  position: relative;
+}
+
+.gradient-border-green::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #10b98140, transparent 40%, transparent 60%, #10b98120);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ========== Button Effects ========== */
+.btn-glow {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s;
+}
+
+.btn-glow:hover::after {
+  transform: translateX(100%);
+}
+
+.btn-glow:hover:not(:disabled) {
+  box-shadow: 0 0 20px #dc262630, 0 0 60px #dc262610;
+  border-color: #dc262660;
+  transform: translateY(-1px);
+}
+
+.btn-glow:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ========== Input Effects ========== */
+.input-glow {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.input-glow:focus-within {
+  border-color: #dc262650;
+  box-shadow: 0 0 20px #dc262615, inset 0 0 20px #dc262608;
+  transform: translateY(-1px);
+}
+
+/* ========== EKG Heartbeat ========== */
+@keyframes ekgDraw {
+  0% { stroke-dashoffset: 500; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes ekgPulse {
+  0%, 100% { opacity: 0.85; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.3); }
+}
+
+/* ========== Candle Animations ========== */
+@keyframes candleFlicker {
+  0%, 100% { transform: scaleY(1) scaleX(1) rotate(0deg); }
+  10% { transform: scaleY(1.05) scaleX(0.95) rotate(-1deg); }
+  20% { transform: scaleY(0.95) scaleX(1.02) rotate(1.5deg); }
+  30% { transform: scaleY(1.08) scaleX(0.97) rotate(-0.5deg); }
+  40% { transform: scaleY(0.97) scaleX(1.01) rotate(1deg); }
+  50% { transform: scaleY(1.03) scaleX(0.98) rotate(-1.5deg); }
+  60% { transform: scaleY(0.96) scaleX(1.03) rotate(0.5deg); }
+  70% { transform: scaleY(1.06) scaleX(0.96) rotate(-1deg); }
+  80% { transform: scaleY(0.98) scaleX(1.01) rotate(1.5deg); }
+  90% { transform: scaleY(1.02) scaleX(0.99) rotate(-0.5deg); }
+}
+
+@keyframes candleGlow {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  25% { opacity: 0.35; transform: scale(1.05); }
+  50% { opacity: 0.2; transform: scale(0.95); }
+  75% { opacity: 0.3; transform: scale(1.02); }
+}
+
+.candle-flame {
+  animation: candleFlicker 1.5s ease-in-out infinite;
+  transform-origin: center bottom;
+  filter: drop-shadow(0 0 4px #f59e0b80) drop-shadow(0 0 8px #dc262640);
+}
+
+.candle-glow {
+  position: relative;
+}
+
+.candle-glow::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f59e0b20 0%, transparent 70%);
+  animation: candleGlow 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ========== Phoenix Rising Animation ========== */
+@keyframes phoenixRise {
+  0% { opacity: 0; transform: translateY(40px) scale(0.8); filter: brightness(0.5); }
+  30% { opacity: 1; transform: translateY(-5px) scale(1.05); filter: brightness(1.4); }
+  50% { transform: translateY(0px) scale(1); filter: brightness(1.2); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
+}
+
+@keyframes phoenixGlow {
+  0%, 100% { filter: drop-shadow(0 0 6px #f59e0b40) drop-shadow(0 0 12px #dc262620); }
+  50% { filter: drop-shadow(0 0 12px #f59e0b60) drop-shadow(0 0 24px #dc262640); }
+}
+
+@keyframes phoenixEmber {
+  0% { opacity: 0; transform: translateY(0) scale(0); }
+  20% { opacity: 1; transform: translateY(-10px) scale(1); }
+  100% { opacity: 0; transform: translateY(-40px) scale(0.3); }
+}
+
+.phoenix-rise {
+  animation: phoenixRise 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.phoenix-glow {
+  animation: phoenixGlow 2s ease-in-out infinite;
+}
+
+.phoenix-ember {
+  animation: phoenixEmber 2s ease-out infinite;
+}
+
+.phoenix-ember-1 { animation-delay: 0s; }
+.phoenix-ember-2 { animation-delay: 0.4s; }
+.phoenix-ember-3 { animation-delay: 0.8s; }
+.phoenix-ember-4 { animation-delay: 1.2s; }
+.phoenix-ember-5 { animation-delay: 1.6s; }
+
+/* ========== Reincarnation Box ========== */
+.reincarnation-card {
+  background: linear-gradient(145deg, #12100a 0%, #0f0d08 50%, #14120d 100%);
+  border: 1px solid #f59e0b20;
+  position: relative;
+  overflow: hidden;
+}
+
+.reincarnation-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, #f59e0b08 0%, transparent 60%);
+  pointer-events: none;
+}
+
+/* ========== Crack Flash (CrackTimeVisualizer) ========== */
+@keyframes crack-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ========== Tone-Specific Obituary Themes ========== */
+
+/* Victorian — warm parchment gold */
+.obituary-card.tone-victorian {
+  background: linear-gradient(145deg, #12100d 0%, #0f0d0a 40%, #100e0b 100%);
+  border-color: #8b691425;
+}
+
+.obituary-card.tone-victorian .obituary-title {
+  color: #c9302c;
+  border-bottom-color: #8b691420;
+}
+
+.obituary-card.tone-victorian .obituary-text {
+  color: #c4b599;
+}
+
+/* Roast — hot dark with fiery red/orange accents */
+.obituary-card.tone-roast {
+  background: linear-gradient(145deg, #140c0c 0%, #0f0808 40%, #120a0a 100%);
+  border-color: #dc262625;
+  box-shadow:
+    0 0 50px #dc262608,
+    0 25px 50px -12px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 #dc262608;
+}
+
+.obituary-card.tone-roast::before {
+  border-color: #dc262612;
+}
+
+.obituary-card.tone-roast .obituary-text {
+  color: #c8b8a8;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.75;
+  letter-spacing: 0;
+}
+
+.obituary-card.tone-roast .obituary-text strong,
+.obituary-card.tone-roast .obituary-text b {
+  color: #ff6b6b;
+}
+
+.obituary-card.tone-roast .obituary-text em,
+.obituary-card.tone-roast .obituary-text i {
+  color: #f97316;
+}
+
+.obituary-card.tone-roast .obituary-title {
+  color: #ff4444;
+  border-bottom-color: #dc262620;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 1.2rem;
+}
+
+.obituary-card.tone-roast .obituary-paragraph {
+  text-indent: 0;
+}
+
+.obituary-card.tone-roast .obituary-paragraph:first-of-type::first-letter {
+  color: #ff4444;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Hollywood — cinematic deep blue/purple with silver text */
+.obituary-card.tone-hollywood {
+  background: linear-gradient(145deg, #0a0c14 0%, #08091a 40%, #0c0e18 100%);
+  border-color: #6366f125;
+  box-shadow:
+    0 0 50px #6366f108,
+    0 25px 50px -12px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 #6366f108;
+}
+
+.obituary-card.tone-hollywood::before {
+  border-color: #6366f112;
+}
+
+.obituary-card.tone-hollywood .obituary-text {
+  color: #b8c0d0;
+  font-family: var(--font-serif);
+  font-size: 0.93rem;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+}
+
+.obituary-card.tone-hollywood .obituary-text strong,
+.obituary-card.tone-hollywood .obituary-text b {
+  color: #e0d8f0;
+}
+
+.obituary-card.tone-hollywood .obituary-text em,
+.obituary-card.tone-hollywood .obituary-text i {
+  color: #a78bfa;
+}
+
+.obituary-card.tone-hollywood .obituary-title {
+  color: #818cf8;
+  border-bottom-color: #6366f120;
+  font-family: var(--font-serif);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 30px #6366f120;
+}
+
+.obituary-card.tone-hollywood .obituary-paragraph:first-of-type::first-letter {
+  color: #818cf8;
+}
+
+/* Tone-specific aged border overrides */
+.obituary-aged-border.tone-roast {
+  background-image:
+    radial-gradient(ellipse at top left, #dc262608 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, #dc262606 0%, transparent 50%),
+    radial-gradient(ellipse at top right, #1a0e0e 0%, transparent 30%),
+    radial-gradient(ellipse at bottom left, #1a0e0e 0%, transparent 30%);
+}
+
+.obituary-aged-border.tone-roast::after {
+  background:
+    linear-gradient(to right, #dc262610 0%, transparent 3%, transparent 97%, #dc262610 100%),
+    linear-gradient(to bottom, #dc262610 0%, transparent 3%, transparent 97%, #dc262610 100%);
+}
+
+.obituary-aged-border.tone-hollywood {
+  background-image:
+    radial-gradient(ellipse at top left, #6366f108 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, #6366f106 0%, transparent 50%),
+    radial-gradient(ellipse at top right, #0e0e1a 0%, transparent 30%),
+    radial-gradient(ellipse at bottom left, #0e0e1a 0%, transparent 30%);
+}
+
+.obituary-aged-border.tone-hollywood::after {
+  background:
+    linear-gradient(to right, #6366f110 0%, transparent 3%, transparent 97%, #6366f110 100%),
+    linear-gradient(to bottom, #6366f110 0%, transparent 3%, transparent 97%, #6366f110 100%);
+}
+
+/* ========== Logo Pulse Ring ========== */
+@keyframes logoRing {
+  0% { box-shadow: 0 0 0 0 #dc262640; opacity: 1; }
+  70% { box-shadow: 0 0 0 18px #dc262600; opacity: 0; }
+  100% { box-shadow: 0 0 0 0 #dc262600; opacity: 0; }
+}
+
+.animate-logo-ring {
+  animation: logoRing 3s ease-in-out infinite;
+  border-radius: 50%;
+}
+
+/* ========== Smooth Section Reveal ========== */
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(24px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.animate-reveal-up {
+  animation: revealUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ========== Glass Card Effect ========== */
+.glass-card {
+  background: rgba(17, 17, 20, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* ========== Subtle hover lift ========== */
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* ========== Smooth scroll ========== */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ========== Focus ring ========== */
+*:focus-visible {
+  outline: 2px solid #dc262650;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
