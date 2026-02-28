@@ -2,7 +2,7 @@
 
 > *Every password has a story. Most end tragically.*
 
-**DeadCredentials** is a darkly theatrical password security auditor that checks whether your password has been pwned, analyzes its strength, and generates a dramatic AI-written **obituary** for it — in your choice of Victorian, Comedy Roast, or Hollywood style.
+**DeadCredentials** is a darkly theatrical password security auditor that checks whether your password has been pwned, analyzes its strength, and generates a dramatic AI-written **obituary** for it in your choice of Victorian, Comedy Roast, or Hollywood style.
 
 Built with Next.js 16, React 19, TypeScript, Tailwind CSS v4, and powered by the [Have I Been Pwned](https://haveibeenpwned.com/Passwords) API + [Puter AI](https://puter.com) (Gemini 2.0 Flash).
 
@@ -198,7 +198,7 @@ Both routes enforce **10 req/min per IP** rate limiting.
 
 ## 📄 License
 
-[MIT]()
+[MIT](https://github.com/suryanarayanrenjith/DeadCredentials/blob/master/LICENSE)
 
 ---
 
