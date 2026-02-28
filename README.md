@@ -104,8 +104,8 @@ dead-credentials/
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/dead-credentials.git
-cd dead-credentials
+git clone https://github.com/suryanarayanrenjith/DeadCredentials.git
+cd DeadCredentials
 npm install
 ```
 
@@ -198,7 +198,7 @@ Both routes enforce **10 req/min per IP** rate limiting.
 
 ## 📄 License
 
-MIT
+[MIT]()
 
 ---
 
