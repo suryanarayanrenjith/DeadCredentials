@@ -30,7 +30,7 @@ export async function checkPasswordBreach(password: string): Promise<HIBPResult>
   const text = await response.text();
 
   // Parse response: each line is "SUFFIX:COUNT"
-  const lines = text.split("\r\n");
+  const lines = text.split(/\r?\n/);
   let breachCount = 0;
 
   for (const line of lines) {

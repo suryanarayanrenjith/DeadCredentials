@@ -1,24 +1,17 @@
-// Rate limiting
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT = 10;
-const RATE_WINDOW = 60_000;
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
-    return false;
-  }
-  entry.count++;
-  return entry.count > RATE_LIMIT;
-}
+import { reincarnationLimiter, getClientIP, isValidOrigin } from "@/lib/apiUtils";
 
 export async function POST(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() || "unknown";
+  // CSRF origin validation
+  if (!isValidOrigin(request)) {
+    return Response.json(
+      { error: "Invalid request origin." },
+      { status: 403 }
+    );
+  }
 
-  if (isRateLimited(ip)) {
+  const ip = getClientIP(request);
+
+  if (reincarnationLimiter.isRateLimited(ip)) {
     return Response.json(
       { error: "Too many requests. Please wait a moment." },
       { status: 429 }
@@ -55,14 +48,18 @@ Example output:
 
 RESPOND WITH ONLY THE JSON. No markdown, no code blocks, no extra text.`;
 
+    const weaknesses = [
+      characteristics?.hasUppercase === false && "- No uppercase letters",
+      characteristics?.hasNumbers === false && "- No numbers",
+      characteristics?.hasSymbols === false && "- No special characters",
+      characteristics?.isCommon && "- Was a common/dictionary password",
+      characteristics?.hasKeyboardPattern && "- Had keyboard patterns",
+      characteristics?.hasRepeatingChars && "- Had repeating characters",
+      characteristics?.length < 12 && "- Too short (under 12 chars)",
+    ].filter(Boolean).join("\n");
+
     const userPrompt = `The user's old password was themed around "${theme}". It was ${length} characters long and had these weaknesses:
-${characteristics?.hasUppercase === false ? "- No uppercase letters" : ""}
-${characteristics?.hasNumbers === false ? "- No numbers" : ""}
-${characteristics?.hasSymbols === false ? "- No special characters" : ""}
-${characteristics?.isCommon ? "- Was a common/dictionary password" : ""}
-${characteristics?.hasKeyboardPattern ? "- Had keyboard patterns" : ""}
-${characteristics?.hasRepeatingChars ? "- Had repeating characters" : ""}
-${characteristics?.length < 12 ? "- Too short (under 12 chars)" : ""}
+${weaknesses || "- No specific weaknesses identified"}
 
 Generate a strong reincarnation of this password that fixes ALL weaknesses while keeping the "${theme}" theme alive. The new password must score 80+ on any strength checker.`;
 

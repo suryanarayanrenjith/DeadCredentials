@@ -159,8 +159,9 @@ export default function ReincarnationBox({
 
       // 2. Use Puter.js to generate (non-streaming for JSON parsing)
       await ensurePuterReady();
+      if (!globalThis.puter) throw new Error("AI service is unavailable. Please refresh the page.");
 
-      const result = await puter!.ai.chat(
+      const result = await globalThis.puter.ai.chat(
         [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

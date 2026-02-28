@@ -7,9 +7,11 @@ import { validatePasswordInput } from "@/lib/passwordValidator";
 interface PasswordInputProps {
   onSubmit: (password: string) => void;
   isLoading: boolean;
+  onReset?: () => void;
+  hasResults?: boolean;
 }
 
-export default function PasswordInput({ onSubmit, isLoading }: PasswordInputProps) {
+export default function PasswordInput({ onSubmit, isLoading, onReset, hasResults }: PasswordInputProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState(false);
@@ -106,35 +108,67 @@ export default function PasswordInput({ onSubmit, isLoading }: PasswordInputProp
         </AnimatePresence>
       </div>
 
-      <motion.button
-        type="submit"
-        disabled={!validation.valid || isLoading}
-        whileHover={!isLoading && validation.valid ? { scale: 1.02, y: -2 } : {}}
-        whileTap={!isLoading && validation.valid ? { scale: 0.98 } : {}}
-        className="mt-5 w-full py-3.5 px-6 bg-gradient-to-b from-[#dc2626] to-[#b91c1c] hover:from-[#ef4444] hover:to-[#dc2626] disabled:opacity-30 disabled:cursor-not-allowed
-          border border-[#dc262660] rounded-2xl text-white font-semibold text-[15px]
-          transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer
-          btn-glow shadow-[0_0_20px_#dc262625,0_4px_12px_#00000040]"
-      >
-        {isLoading ? (
-          <>
-            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="tracking-wide">Digging the grave...</span>
-          </>
-        ) : (
-          <>
-            {/* Shield break icon */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              <path d="M9 12l2 2 4-4" />
-            </svg>
-            <span className="tracking-wide">Generate Obituary</span>
-          </>
-        )}
-      </motion.button>
+      <div className="mt-5 flex gap-2.5">
+        <motion.button
+          type="submit"
+          disabled={!validation.valid || isLoading}
+          whileHover={!isLoading && validation.valid ? { scale: 1.02, y: -2 } : {}}
+          whileTap={!isLoading && validation.valid ? { scale: 0.98 } : {}}
+          className={`${hasResults ? 'flex-1' : 'w-full'} py-3.5 px-6 bg-gradient-to-b from-[#dc2626] to-[#b91c1c] hover:from-[#ef4444] hover:to-[#dc2626] disabled:opacity-30 disabled:cursor-not-allowed
+            border border-[#dc262660] rounded-2xl text-white font-semibold text-[15px]
+            transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer
+            btn-glow shadow-[0_0_20px_#dc262625,0_4px_12px_#00000040]`}
+        >
+          {isLoading ? (
+            <>
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="tracking-wide">Digging the grave...</span>
+            </>
+          ) : (
+            <>
+              {/* Shield break icon */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+              <span className="tracking-wide">Generate Obituary</span>
+            </>
+          )}
+        </motion.button>
+
+        {/* New Scan button — only visible when results exist */}
+        <AnimatePresence>
+          {hasResults && !isLoading && (
+            <motion.button
+              type="button"
+              onClick={() => {
+                setPassword("");
+                setTouched(false);
+                onReset?.();
+              }}
+              initial={{ opacity: 0, scale: 0.8, width: 0 }}
+              animate={{ opacity: 1, scale: 1, width: "auto" }}
+              exit={{ opacity: 0, scale: 0.8, width: 0 }}
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.96 }}
+              className="py-3.5 px-5 bg-[#111114] border border-[#1e1e24] hover:border-[#2a2a34] hover:bg-[#18181c]
+                rounded-2xl text-[#a1a1aa] hover:text-[#e8e8ea] font-semibold text-[14px]
+                transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer
+                whitespace-nowrap"
+              aria-label="Start a new scan"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              <span className="tracking-wide">New Scan</span>
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
 
       <p className="text-center text-[11px] text-[#636370] mt-4 flex items-center justify-center gap-1.5 tracking-wide">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

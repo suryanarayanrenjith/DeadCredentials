@@ -15,8 +15,7 @@ import AnimatedBackground from "@/app/components/AnimatedBackground";
 import type { PasswordCharacteristics } from "@/lib/passwordAnalyzer";
 import { analyzePasswordDNA, type DNASegment } from "@/lib/passwordAnalyzer";
 import { ensurePuterReady } from "@/lib/puterAuth";
-
-type ToneOption = "victorian" | "roast" | "hollywood";
+import type { ToneOption } from "@/lib/types";
 
 interface AnalysisData {
   breachCount: number;
@@ -152,12 +151,12 @@ function PasswordGraveyard({ entries, onClear }: { entries: GraveyardEntry[]; on
           </button>
         </h3>
         <div className="space-y-2 max-h-48 overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-          {entries.map((entry, i) => (
+          {entries.map((entry) => (
             <motion.div
-              key={i}
+              key={entry.timestamp}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.04 }}
+              transition={{ duration: 0.3 }}
               className="flex items-center justify-between py-2.5 px-3.5 rounded-xl bg-[#111114]/80 border border-[#1a1a20] hover:border-[#2a2a32] hover:bg-[#18181c] transition-all duration-200 hover-lift"
             >
               <div className="flex items-center gap-2.5">
@@ -275,13 +274,13 @@ function BreakdownPanel({ characteristics }: { characteristics: PasswordCharacte
   );
 }
 
-/* ── Fun comparison stats ── */
+/* ── Fun comparison stats (approximations for entertainment) ── */
 function FunComparison({ score, crackTime }: { score: number; crackTime: string }) {
   const comparison = (() => {
-    if (score >= 80) return { text: "Stronger than 94% of passwords worldwide", icon: "🏆" };
-    if (score >= 60) return { text: "Stronger than about 60% of passwords", icon: "📊" };
-    if (score >= 40) return { text: "Weaker than the average password", icon: "📉" };
-    if (score >= 20) return { text: "In the bottom 20% of all passwords", icon: "🚨" };
+    if (score >= 80) return { text: "Estimated stronger than ~94% of passwords", icon: "🏆" };
+    if (score >= 60) return { text: "Estimated stronger than ~60% of passwords", icon: "📊" };
+    if (score >= 40) return { text: "Likely weaker than the average password", icon: "📉" };
+    if (score >= 20) return { text: "Estimated in the bottom ~20% of passwords", icon: "🚨" };
     return { text: "Among the weakest passwords ever created", icon: "💀" };
   })();
 
@@ -348,6 +347,7 @@ function ToneSelector({ tone, setTone }: { tone: ToneOption; setTone: (t: ToneOp
           <motion.button
             key={t.id}
             onClick={() => setTone(t.id)}
+            aria-pressed={tone === t.id}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.3, delay: 0.1 * i + 0.2 }}
@@ -417,11 +417,13 @@ function ModeSwitcher({ mode, setMode }: { mode: "single" | "batch"; setMode: (m
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.1 }}
     >
-      <div className="relative bg-[#0c0c0f]/60 backdrop-blur-sm border border-[#1e1e24] rounded-2xl p-1.5 flex gap-1.5">
+      <div className="relative bg-[#0c0c0f]/60 backdrop-blur-sm border border-[#1e1e24] rounded-2xl p-1.5 flex gap-1.5" role="tablist" aria-label="Analysis mode">
         {modes.map((m) => (
           <motion.button
             key={m.id}
             onClick={() => setMode(m.id)}
+            role="tab"
+            aria-selected={mode === m.id}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className={`relative flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs font-medium transition-colors duration-200 cursor-pointer z-10 ${
@@ -532,7 +534,26 @@ export default function Home() {
   const [lastPassword, setLastPassword] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
   const [mode, setMode] = useState<"single" | "batch">("single");
-  const bellRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  /** Get or create a shared AudioContext (avoids browser cap of ~6 contexts) */
+  const getAudioContext = useCallback(() => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+      audioCtxRef.current = new AudioContext();
+    }
+    // Resume if suspended (browsers suspend until user gesture)
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  // Close AudioContext on unmount
+  useEffect(() => {
+    return () => {
+      audioCtxRef.current?.close();
+    };
+  }, []);
 
   // Dynamic session stats
   const deadCount = graveyard.filter((e) => !e.alive).length;
@@ -566,7 +587,7 @@ export default function Home() {
   /** Funeral bell — low, somber tone */
   const playDeathBell = useCallback(() => {
     try {
-      const ctx = new AudioContext();
+      const ctx = getAudioContext();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -591,12 +612,12 @@ export default function Home() {
     } catch {
       // Audio not available
     }
-  }, []);
+  }, [getAudioContext]);
 
   /** Victory chime — bright ascending arpeggio */
   const playVictoryChime = useCallback(() => {
     try {
-      const ctx = new AudioContext();
+      const ctx = getAudioContext();
       const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
       notes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -615,7 +636,7 @@ export default function Home() {
     } catch {
       // Audio not available
     }
-  }, []);
+  }, [getAudioContext]);
 
   const handleSubmit = useCallback(
     async (password: string) => {
@@ -674,8 +695,9 @@ export default function Home() {
         setTimeout(() => setShowConfetti(false), 5000);
 
         await ensurePuterReady();
+        if (!globalThis.puter) throw new Error("AI service is unavailable. Please refresh the page.");
 
-        const stream = await puter!.ai.chat(
+        const stream = await globalThis.puter.ai.chat(
           [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -707,7 +729,7 @@ export default function Home() {
   );
 
   return (
-    <main className="min-h-screen flex flex-col items-center px-4 py-16 md:py-24 overflow-hidden">
+    <main className={`min-h-screen flex flex-col items-center px-4 py-16 md:py-24 overflow-hidden ${analysisData ? "pb-16" : ""}`}>
       {/* Animated canvas background */}
       <AnimatedBackground />
 
@@ -855,7 +877,20 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.15 }}
             >
-              <PasswordInput onSubmit={handleSubmit} isLoading={isLoading} />
+              <PasswordInput
+                onSubmit={handleSubmit}
+                isLoading={isLoading}
+                hasResults={!!analysisData}
+                onReset={() => {
+                  setObituary("");
+                  setAnalysisData(null);
+                  setPasswordAlive(false);
+                  setError("");
+                  setIsStreaming(false);
+                  setShowConfetti(false);
+                  setLastPassword("");
+                }}
+              />
             </motion.div>
           </motion.div>
         )}
@@ -900,6 +935,8 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
+            aria-live="polite"
+            aria-label="Password analysis results"
           >
             {/* Strength Meter */}
             <motion.div
@@ -1053,9 +1090,6 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Hidden audio element */}
-      <audio ref={bellRef} preload="none" />
 
       {/* Security Tips Ticker */}
       <AnimatePresence>

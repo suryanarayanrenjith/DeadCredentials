@@ -1,10 +1,46 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ensurePuterReady } from "@/lib/puterAuth";
+import { maskPassword } from "@/lib/apiUtils";
+import type { ToneOption } from "@/lib/types";
 
 // Puter global type is declared in lib/puterAuth.ts
+
+/**
+ * Render markdown bold/italic safely as React elements instead of
+ * dangerouslySetInnerHTML — prevents XSS from AI-generated content.
+ */
+function renderMarkdownSafe(text: string): ReactNode[] {
+  const paragraphs = text.split(/\n\n+/);
+  return paragraphs.map((para, pi) => {
+    // Split into tokens: **bold**, *italic*, and plain text
+    const parts: ReactNode[] = [];
+    const regex = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(para)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(para.slice(lastIndex, match.index));
+      }
+      if (match[2]) {
+        // Bold **text**
+        parts.push(<strong key={`${pi}-b-${match.index}`} className="text-[#e8e8ea]">{match[2]}</strong>);
+      } else if (match[3]) {
+        // Italic *text*
+        parts.push(<em key={`${pi}-i-${match.index}`} className="text-[#d4d4d8]">{match[3]}</em>);
+      }
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < para.length) {
+      parts.push(para.slice(lastIndex));
+    }
+
+    return <p key={pi} className={pi > 0 ? "mt-3" : ""}>{parts}</p>;
+  });
+}
 
 interface BatchResult {
   password: string;
@@ -16,21 +52,10 @@ interface BatchResult {
   alive: boolean;
 }
 
-type ToneOption = "victorian" | "roast" | "hollywood";
-
 interface BatchProcessorProps {
   visible: boolean;
   tone: ToneOption;
   setTone: (t: ToneOption) => void;
-}
-
-function maskPassword(password: string): string {
-  if (password.length <= 2) return "*".repeat(password.length);
-  if (password.length <= 4) return password[0] + "*".repeat(password.length - 1);
-  const first = password.slice(0, 2);
-  const last = password.slice(-2);
-  const middle = "*".repeat(Math.min(password.length - 4, 6));
-  return first + middle + last;
 }
 
 export default function BatchProcessor({ visible, tone, setTone }: BatchProcessorProps) {
@@ -160,8 +185,9 @@ Write the summary now.`;
 
     try {
       await ensurePuterReady();
+      if (!globalThis.puter) throw new Error("AI service is unavailable. Please refresh the page.");
 
-      const stream = await puter!.ai.chat(
+      const stream = await globalThis.puter.ai.chat(
         [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -337,6 +363,15 @@ Write the summary now.`;
                 ? "border-[#dc2626] bg-[#dc262610]"
                 : "border-[#1e1e24] hover:border-[#2a2a34] hover:bg-[#111114]"
             }`}
+            role="button"
+            tabIndex={0}
+            aria-label="Upload password file. Drag and drop or click to browse."
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             onDragOver={(e) => {
               e.preventDefault();
               setDragOver(true);
@@ -563,18 +598,12 @@ Write the summary now.`;
                         <div
                           className="text-[12px] leading-[1.8] text-[#a1a1aa] whitespace-pre-wrap"
                           style={{ fontFamily: "var(--font-obituary, Georgia, serif)" }}
-                          dangerouslySetInnerHTML={{
-                            __html: summary
-                              .replace(/\*\*(.+?)\*\*/g, '<strong class="text-[#e8e8ea]">$1</strong>')
-                              .replace(/\*(.+?)\*/g, '<em class="text-[#d4d4d8]">$1</em>')
-                              .replace(/\n\n/g, '</p><p class="mt-3">')
-                              .replace(/^/, '<p>')
-                              .replace(/$/, '</p>'),
-                          }}
-                        />
-                        {summaryStreaming && (
-                          <span className="inline-block w-[2px] h-[14px] bg-[#dc2626] ml-0.5 animate-pulse align-middle" />
-                        )}
+                        >
+                          {renderMarkdownSafe(summary)}
+                          {summaryStreaming && (
+                            <span className="inline-block w-[2px] h-[14px] bg-[#dc2626] ml-0.5 animate-pulse align-middle" />
+                          )}
+                        </div>
                       </div>
                     )}
 

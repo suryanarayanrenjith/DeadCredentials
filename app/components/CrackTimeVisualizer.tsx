@@ -36,7 +36,7 @@ function crackTimeToSeconds(crackTime: string): number {
 }
 
 function getRealTimeRef(seconds: number): { gpu: string; botnet: string } {
-  if (seconds <= 0) return { gpu: "Instantly", botnet: "Instantly" };
+  if (seconds <= 0) return { gpu: "Instantly on a consumer GPU", botnet: "Instantly on a botnet" };
   if (seconds < 0.001) return { gpu: `${(seconds * 1000).toFixed(2)}ms on a consumer GPU`, botnet: `${(seconds * 1000000).toFixed(0)}μs on a botnet` };
   if (seconds < 1) return { gpu: `${seconds.toFixed(2)}s on a consumer GPU`, botnet: `${(seconds * 0.001).toFixed(4)}s on a botnet` };
   if (seconds < 60) return { gpu: `${seconds.toFixed(1)} seconds on a consumer GPU`, botnet: `${(seconds * 0.001).toFixed(2)} seconds on a botnet` };

@@ -3,41 +3,21 @@ import {
   analyzePassword,
   formatCharacteristicsForPrompt,
 } from "@/lib/passwordAnalyzer";
-
-// Simple in-memory rate limiter
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT = 10; // requests per window
-const RATE_WINDOW = 60_000; // 1 minute
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
-    return false;
-  }
-
-  entry.count++;
-  return entry.count > RATE_LIMIT;
-}
-
-/** Mask a password for display: show first and last char, mask middle */
-function maskPassword(password: string): string {
-  if (password.length <= 2) return "*".repeat(password.length);
-  if (password.length <= 4) return password[0] + "*".repeat(password.length - 1);
-  const first = password.slice(0, 2);
-  const last = password.slice(-2);
-  const middle = "*".repeat(Math.min(password.length - 4, 6));
-  return first + middle + last;
-}
+import { checkPasswordLimiter, getClientIP, isValidOrigin, maskPassword } from "@/lib/apiUtils";
 
 export async function POST(request: Request) {
-  // Rate limiting
-  const forwarded = request.headers.get("x-forwarded-for");
-  const ip = forwarded?.split(",")[0]?.trim() || "unknown";
+  // CSRF origin validation
+  if (!isValidOrigin(request)) {
+    return Response.json(
+      { error: "Invalid request origin." },
+      { status: 403 }
+    );
+  }
 
-  if (isRateLimited(ip)) {
+  // Rate limiting
+  const ip = getClientIP(request);
+
+  if (checkPasswordLimiter.isRateLimited(ip)) {
     return Response.json(
       { error: "Too many requests. Please wait a moment." },
       { status: 429 }
