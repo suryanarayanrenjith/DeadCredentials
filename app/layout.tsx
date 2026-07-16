@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ClientErrorBoundary from "@/app/components/ErrorBoundary";
@@ -14,15 +14,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DeadCredentials - Password Obituary Generator",
+  title: "DeadCredentials — Password Obituary Generator",
   description:
-    "Enter a password and receive its dramatic obituary. Check if it has been breached and discover its cause of death.",
-  keywords: ["password", "security", "obituary", "breach", "cybersecurity", "HIBP"],
+    "Free, open-source password auditor. Check if your password was breached, analyze its strength, and receive its dramatic obituary. No sign-up, no accounts, no cost.",
+  keywords: ["password", "security", "obituary", "breach", "cybersecurity", "HIBP", "free", "open source", "no signup"],
+  applicationName: "DeadCredentials",
+  manifest: "/manifest.webmanifest",
+  authors: [{ name: "suryanarayanrenjith" }],
   openGraph: {
     title: "DeadCredentials — Password Obituary Generator",
-    description: "Every password has a story. Most end tragically.",
+    description: "Every password has a story. Most end tragically. Free & open source — no sign-up required.",
     type: "website",
   },
+  appleWebApp: {
+    capable: true,
+    title: "DeadCredentials",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#08080a",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -32,9 +47,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <script src="https://js.puter.com/v2/" defer></script>
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

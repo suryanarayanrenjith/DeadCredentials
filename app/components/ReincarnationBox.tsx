@@ -4,9 +4,7 @@ import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { PasswordCharacteristics } from "@/lib/passwordAnalyzer";
 import { analyzePassword } from "@/lib/passwordAnalyzer";
-import { ensurePuterReady } from "@/lib/puterAuth";
-
-// Puter global type is declared in lib/puterAuth.ts
+import { generateThemedPassword } from "@/lib/generator";
 
 // ── Theme detection ──
 const ANIMAL_WORDS = new Set([
@@ -134,66 +132,18 @@ export default function ReincarnationBox({
     setShowResult(false);
 
     try {
-      // 1. Get prompts from API
-      const response = await fetch("/api/reincarnate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          theme,
-          length: characteristics.length,
-          characteristics: {
-            hasUppercase: characteristics.hasUppercase,
-            hasNumbers: characteristics.hasNumbers,
-            hasSymbols: characteristics.hasSymbols,
-            isCommon: characteristics.isCommon,
-            hasKeyboardPattern: characteristics.hasKeyboardPattern,
-            hasRepeatingChars: characteristics.hasRepeatingChars,
-            length: characteristics.length,
-          },
-        }),
-      });
+      // Generate a strong, themed password ENTIRELY IN THE BROWSER with the
+      // Web Crypto CSPRNG — nothing is sent to any server.
+      // Brief pause so the "forging" animation reads (purely cosmetic).
+      await new Promise((r) => setTimeout(r, 600));
 
-      if (!response.ok) throw new Error("Failed to get reincarnation prompt");
-
-      const { systemPrompt, userPrompt } = await response.json();
-
-      // 2. Use Puter.js to generate (non-streaming for JSON parsing)
-      await ensurePuterReady();
-      if (!globalThis.puter) throw new Error("AI service is unavailable. Please refresh the page.");
-
-      const result = await globalThis.puter.ai.chat(
-        [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        {
-          model: "gemini-2.0-flash",
-          stream: false,
-          temperature: 0.9,
-        }
+      const { password: generatedPw, explanation: generatedExplanation } = generateThemedPassword(
+        theme,
+        Math.max(16, characteristics.length)
       );
-
-      // Handle non-streaming response
-      let rawText = "";
-      if (result && typeof result === "object" && "message" in result) {
-        rawText = (result as { message?: { content?: string } }).message?.content || "";
-      } else if (typeof result === "string") {
-        rawText = result;
-      }
-
-      // Parse JSON response — handle markdown code blocks
-      let cleaned = rawText.trim();
-      if (cleaned.startsWith("```")) {
-        cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
-      }
-
-      const parsed = JSON.parse(cleaned);
-      const generatedPw = parsed.password || "";
-      const generatedExplanation = parsed.explanation || "";
-
       if (!generatedPw) throw new Error("No password generated");
 
-      // 3. Score the new password
+      // Score the new password locally (single source of truth for the meter).
       const newAnalysis = analyzePassword(generatedPw);
 
       setNewPassword(generatedPw);

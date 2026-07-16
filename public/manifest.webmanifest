@@ -1,0 +1,24 @@
+{
+  "name": "DeadCredentials — Password Obituary Generator",
+  "short_name": "DeadCredentials",
+  "description": "Free, open-source password auditor with breach checks and dramatic AI obituaries. No sign-up, no cost.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08080a",
+  "theme_color": "#08080a",
+  "orientation": "portrait-primary",
+  "categories": ["security", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

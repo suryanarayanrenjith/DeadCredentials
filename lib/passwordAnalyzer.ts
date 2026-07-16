@@ -40,6 +40,7 @@ export interface PasswordCharacteristics {
   strengthScore: number; // 0–100
   deathCause: string;
   patterns: string[];
+  entropyBits?: number; // estimated Shannon/search-space entropy in bits
 }
 
 function deLeet(password: string): string {
@@ -95,6 +96,26 @@ function estimateCrackTime(password: string, characteristics: Partial<PasswordCh
   if (seconds < 86400 * 365 * 1000) return `${Math.ceil(seconds / (86400 * 365))} years`;
   if (seconds < 86400 * 365 * 1_000_000) return `${Math.ceil(seconds / (86400 * 365 * 1000))} thousand years`;
   return "millions of years";
+}
+
+/** Estimated search-space entropy in bits, discounted for detectable patterns. */
+function calculateEntropy(password: string, chars: Partial<PasswordCharacteristics>): number {
+  let charsetSize = 0;
+  if (chars.hasLowercase) charsetSize += 26;
+  if (chars.hasUppercase) charsetSize += 26;
+  if (chars.hasNumbers) charsetSize += 10;
+  if (chars.hasSymbols) charsetSize += 33;
+  if (charsetSize === 0) charsetSize = 26;
+
+  let bits = password.length * Math.log2(charsetSize);
+
+  // Honest discounts: patterns collapse effective entropy dramatically.
+  if (chars.isCommon) return Math.min(bits, 10);
+  if (chars.hasKeyboardPattern) bits *= 0.7;
+  if (chars.hasSequentialNumbers) bits *= 0.8;
+  if (chars.hasRepeatingChars) bits *= 0.85;
+
+  return Math.round(bits);
 }
 
 function calculateStrength(password: string, chars: Partial<PasswordCharacteristics>): number {
@@ -180,6 +201,7 @@ export function analyzePassword(password: string): PasswordCharacteristics {
   const crackTime = estimateCrackTime(password, partial);
   const deathCause = determineDeathCause(partial);
   const patterns = detectPatterns(password);
+  const entropyBits = calculateEntropy(password, partial);
 
   return {
     ...partial,
@@ -187,6 +209,7 @@ export function analyzePassword(password: string): PasswordCharacteristics {
     estimatedCrackTime: crackTime,
     deathCause,
     patterns,
+    entropyBits,
   } as PasswordCharacteristics;
 }
 

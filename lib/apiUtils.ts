@@ -56,11 +56,11 @@ class RateLimiter {
   }
 }
 
-/** Rate limiter for password check API: 10 requests per 60s */
-export const checkPasswordLimiter = new RateLimiter(10, 60_000);
+/** Rate limiter for the AI obituary stream: 20 requests per 60s */
+export const obituaryLimiter = new RateLimiter(20, 60_000);
 
-/** Rate limiter for reincarnation API: 10 requests per 60s */
-export const reincarnationLimiter = new RateLimiter(10, 60_000);
+/** Rate limiter for the batch summary stream: 10 requests per 60s */
+export const batchSummaryLimiter = new RateLimiter(10, 60_000);
 
 /** Extract client IP from request headers */
 export function getClientIP(request: Request): string {
@@ -91,14 +91,4 @@ export function isValidOrigin(request: Request): boolean {
   }
 
   return true;
-}
-
-/** Shared password masking utility */
-export function maskPassword(password: string): string {
-  if (password.length <= 2) return "*".repeat(password.length);
-  if (password.length <= 4) return password[0] + "*".repeat(password.length - 1);
-  const first = password.slice(0, 2);
-  const last = password.slice(-2);
-  const middle = "*".repeat(Math.min(password.length - 4, 6));
-  return first + middle + last;
 }

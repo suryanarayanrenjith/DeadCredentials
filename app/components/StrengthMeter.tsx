@@ -7,6 +7,7 @@ interface StrengthMeterProps {
   score: number; // 0–100
   crackTime: string;
   visible: boolean;
+  entropyBits?: number;
 }
 
 function getHealthColor(score: number): string {
@@ -103,7 +104,7 @@ function EKGLine({ score, color }: { score: number; color: string }) {
   );
 }
 
-export default function StrengthMeter({ score, crackTime, visible }: StrengthMeterProps) {
+export default function StrengthMeter({ score, crackTime, visible, entropyBits }: StrengthMeterProps) {
   const [animatedScore, setAnimatedScore] = useState(100);
 
   useEffect(() => {
@@ -181,6 +182,21 @@ export default function StrengthMeter({ score, crackTime, visible }: StrengthMet
             {crackTime}
           </span>
         </motion.div>
+
+        {/* Entropy */}
+        {typeof entropyBits === "number" && (
+          <motion.div
+            className="mt-2 flex items-center justify-between"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7, duration: 0.4 }}
+          >
+            <span className="text-[11px] text-[#71717a] uppercase tracking-wider font-medium">Entropy</span>
+            <span className="text-xs font-mono text-[#a1a1aa] font-semibold bg-[#0c0c0f] px-2.5 py-1 rounded-lg border border-[#1e1e24]">
+              {entropyBits} bits
+            </span>
+          </motion.div>
+        )}
       </div>
     </motion.div>
   );

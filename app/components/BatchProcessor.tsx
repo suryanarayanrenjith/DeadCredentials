@@ -2,11 +2,11 @@
 
 import { useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ensurePuterReady } from "@/lib/puterAuth";
-import { maskPassword } from "@/lib/apiUtils";
+import { maskPassword } from "@/lib/passwordUtils";
+import { analyzePassword } from "@/lib/passwordAnalyzer";
+import { checkPasswordBreach } from "@/lib/hibpClient";
+import { streamBatchSummary, type Engine } from "@/lib/obituaryClient";
 import type { ToneOption } from "@/lib/types";
-
-// Puter global type is declared in lib/puterAuth.ts
 
 /**
  * Render markdown bold/italic safely as React elements instead of
@@ -68,6 +68,7 @@ export default function BatchProcessor({ visible, tone, setTone }: BatchProcesso
   const [summary, setSummary] = useState("");
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryStreaming, setSummaryStreaming] = useState(false);
+  const [summaryEngine, setSummaryEngine] = useState<Engine | null>(null);
   const summaryGenerated = useRef(false);
 
   const processPasswords = useCallback(async (passwords: string[]) => {
@@ -95,34 +96,25 @@ export default function BatchProcessor({ visible, tone, setTone }: BatchProcesso
       setProgress({ current: i + 1, total: unique.length });
 
       try {
-        const response = await fetch("/api/check-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password, tone }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          batchResults.push({
-            password,
-            masked: maskPassword(password),
-            score: data.characteristics.strengthScore,
-            breachCount: data.breachCount,
-            crackTime: data.characteristics.estimatedCrackTime,
-            deathCause: data.characteristics.deathCause,
-            alive: data.characteristics.strengthScore >= 80 && data.breachCount === 0,
-          });
-        } else {
-          batchResults.push({
-            password,
-            masked: maskPassword(password),
-            score: 0,
-            breachCount: -1,
-            crackTime: "error",
-            deathCause: "Analysis failed",
-            alive: false,
-          });
+        // Analyze locally; breach-check via HIBP — all in the browser. The raw
+        // password never leaves the device; only a 5-char hash prefix goes out.
+        const characteristics = analyzePassword(password);
+        let breachCount = 0;
+        try {
+          breachCount = (await checkPasswordBreach(password)).breachCount;
+        } catch {
+          breachCount = -1; // breach lookup failed for this row (analysis still valid)
         }
+
+        batchResults.push({
+          password,
+          masked: maskPassword(password),
+          score: characteristics.strengthScore,
+          breachCount,
+          crackTime: characteristics.estimatedCrackTime,
+          deathCause: characteristics.deathCause,
+          alive: characteristics.strengthScore >= 80 && breachCount === 0,
+        });
       } catch {
         batchResults.push({
           password,
@@ -130,21 +122,21 @@ export default function BatchProcessor({ visible, tone, setTone }: BatchProcesso
           score: 0,
           breachCount: -1,
           crackTime: "error",
-          deathCause: "Network error",
+          deathCause: "Analysis failed",
           alive: false,
         });
       }
 
       setResults([...batchResults]);
 
-      // Rate-limit: Small delay between requests
+      // Small delay between HIBP requests to stay polite to the free API.
       if (i < unique.length - 1) {
-        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((r) => setTimeout(r, 200));
       }
     }
 
     setProcessing(false);
-  }, [tone]);
+  }, []);
 
   // Auto-generate summary when processing completes
   const generateSummary = useCallback(async (batchResults: BatchResult[]) => {
@@ -152,6 +144,7 @@ export default function BatchProcessor({ visible, tone, setTone }: BatchProcesso
     setSummaryLoading(true);
     setSummaryStreaming(true);
     setSummary("");
+    setSummaryEngine(null);
 
     const alive = batchResults.filter((r) => r.alive).length;
     const dead = batchResults.filter((r) => !r.alive).length;
@@ -160,52 +153,28 @@ export default function BatchProcessor({ visible, tone, setTone }: BatchProcesso
     const weakest = [...batchResults].sort((a, b) => a.score - b.score).slice(0, 3);
     const strongest = [...batchResults].sort((a, b) => b.score - a.score).slice(0, 3);
 
-    const toneGuide: Record<ToneOption, string> = {
-      victorian: "Write in an ornate Victorian-era eulogy style. Use flowery, dramatic prose with archaic phrases. Be theatrically mournful for the dead passwords and grandly celebratory for the survivors.",
-      roast: "Write as a savage comedy roast. Be brutally funny, sarcastic, and merciless in mocking weak passwords. Celebrate strong ones with backhanded compliments. Use modern slang and humor.",
-      hollywood: "Write as a dramatic Hollywood movie narrator. Use epic, cinematic language. Make it sound like a blockbuster movie trailer script. Add dramatic pauses and tension.",
+    const stats = {
+      total: batchResults.length,
+      alive,
+      dead,
+      avgScore: avg,
+      totalBreaches,
+      mortalityRate: Math.round((dead / batchResults.length) * 100),
+      weakest: weakest.map((w) => ({
+        masked: w.masked,
+        score: w.score,
+        breachCount: w.breachCount,
+        deathCause: w.deathCause,
+      })),
+      strongest: strongest.map((s) => ({ masked: s.masked, score: s.score })),
     };
 
-    const systemPrompt = `You are a password security analyst who writes batch audit summaries. ${toneGuide[tone]} Keep the summary to 3-5 paragraphs. Use markdown formatting (bold, italic). Do NOT use headers or bullet points.`;
-
-    const userPrompt = `Write a batch obituary/summary for a password audit with these results:
-
-- Total passwords analyzed: ${batchResults.length}
-- Alive (strong & unbreached): ${alive}
-- Dead (weak or breached): ${dead}
-- Average strength score: ${avg}/100
-- Total breach appearances: ${totalBreaches.toLocaleString()}
-- Mortality rate: ${Math.round((dead / batchResults.length) * 100)}%
-
-Weakest passwords (masked): ${weakest.map((w) => `${w.masked} (score: ${w.score}, breaches: ${w.breachCount >= 0 ? w.breachCount.toLocaleString() : "N/A"}, cause: ${w.deathCause})`).join("; ")}
-
-Strongest passwords (masked): ${strongest.map((s) => `${s.masked} (score: ${s.score})`).join("; ")}
-
-Write the summary now.`;
-
     try {
-      await ensurePuterReady();
-      if (!globalThis.puter) throw new Error("AI service is unavailable. Please refresh the page.");
-
-      const stream = await globalThis.puter.ai.chat(
-        [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        {
-          model: "gemini-2.0-flash",
-          stream: true,
-          temperature: 0.85,
-        }
+      await streamBatchSummary(
+        { tone, stats },
+        (text) => setSummary(text),
+        (engine) => setSummaryEngine(engine)
       );
-
-      let fullText = "";
-      for await (const part of stream) {
-        if (part?.text) {
-          fullText += part.text;
-          setSummary(fullText);
-        }
-      }
       setSummaryStreaming(false);
     } catch (err) {
       console.error("Summary generation error:", err);
@@ -547,6 +516,7 @@ Write the summary now.`;
                   setProgress({ current: 0, total: 0 });
                   setError("");
                   setSummary("");
+                  setSummaryEngine(null);
                   summaryGenerated.current = false;
                 }}
                 className="py-2.5 px-4 bg-[#111114] border border-[#1e1e24] rounded-xl text-xs text-[#71717a] font-medium hover:border-[#2a2a34] hover:bg-[#18181c] transition-all duration-200 cursor-pointer"
@@ -573,15 +543,30 @@ Write the summary now.`;
                         <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                       </svg>
                       <span className="text-xs font-semibold text-[#e8e8ea] tracking-wide">Batch Obituary</span>
-                      <span className="text-[8px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full border ml-auto"
-                        style={{
-                          color: tone === "victorian" ? "#a78bfa" : tone === "roast" ? "#f97316" : "#60a5fa",
-                          borderColor: tone === "victorian" ? "#a78bfa30" : tone === "roast" ? "#f9731630" : "#60a5fa30",
-                          backgroundColor: tone === "victorian" ? "#a78bfa08" : tone === "roast" ? "#f9731608" : "#60a5fa08",
-                        }}
-                      >
-                        {tone}
-                      </span>
+                      <div className="ml-auto flex items-center gap-2">
+                        {summaryEngine && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[8px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full border"
+                            style={{
+                              color: summaryEngine === "pollinations" ? "#10b981" : "#f59e0b",
+                              borderColor: summaryEngine === "pollinations" ? "#10b98130" : "#f59e0b30",
+                              backgroundColor: summaryEngine === "pollinations" ? "#10b98108" : "#f59e0b08",
+                            }}
+                            title="Free & open — no API key, no account. Falls back to a local engine when offline."
+                          >
+                            {summaryEngine === "pollinations" ? "AI" : "Local"}
+                          </span>
+                        )}
+                        <span className="text-[8px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full border"
+                          style={{
+                            color: tone === "victorian" ? "#a78bfa" : tone === "roast" ? "#f97316" : "#60a5fa",
+                            borderColor: tone === "victorian" ? "#a78bfa30" : tone === "roast" ? "#f9731630" : "#60a5fa30",
+                            backgroundColor: tone === "victorian" ? "#a78bfa08" : tone === "roast" ? "#f9731608" : "#60a5fa08",
+                          }}
+                        >
+                          {tone}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Summary content */}

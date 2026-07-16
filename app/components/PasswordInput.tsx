@@ -3,6 +3,23 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { validatePasswordInput } from "@/lib/passwordValidator";
+import { analyzePassword } from "@/lib/passwordAnalyzer";
+
+function liveColor(score: number): string {
+  if (score >= 80) return "#10b981";
+  if (score >= 60) return "#84cc16";
+  if (score >= 40) return "#f59e0b";
+  if (score >= 20) return "#f97316";
+  return "#dc2626";
+}
+
+function liveLabel(score: number): string {
+  if (score >= 80) return "Very Strong";
+  if (score >= 60) return "Strong";
+  if (score >= 40) return "Moderate";
+  if (score >= 20) return "Weak";
+  return "Very Weak";
+}
 
 interface PasswordInputProps {
   onSubmit: (password: string) => void;
@@ -18,6 +35,12 @@ export default function PasswordInput({ onSubmit, isLoading, onReset, hasResults
 
   const validation = useMemo(() => validatePasswordInput(password), [password]);
   const showError = touched && password.length > 0 && !validation.valid;
+
+  // Live, client-side strength preview (no network, no submit required).
+  const livePreview = useMemo(
+    () => (password.length > 0 && validation.valid ? analyzePassword(password) : null),
+    [password, validation.valid]
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +107,44 @@ export default function PasswordInput({ onSubmit, isLoading, onReset, hasResults
             )}
           </button>
         </div>
+
+        {/* Live strength preview */}
+        <AnimatePresence>
+          {livePreview && (
+            <motion.div
+              className="mt-3 px-1.5"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <span
+                  className="text-[10px] uppercase tracking-wider font-semibold"
+                  style={{ color: liveColor(livePreview.strengthScore) }}
+                >
+                  {liveLabel(livePreview.strengthScore)}
+                </span>
+                <span className="text-[9px] font-mono text-[#52525b] flex items-center gap-2">
+                  <span>{livePreview.entropyBits ?? 0} bits</span>
+                  <span className="text-[#27272a]">|</span>
+                  <span>{livePreview.strengthScore}/100</span>
+                </span>
+              </div>
+              <div className="h-1.5 bg-[#1e1e24] rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full"
+                  animate={{ width: `${livePreview.strengthScore}%` }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                  style={{
+                    backgroundColor: liveColor(livePreview.strengthScore),
+                    boxShadow: `0 0 8px ${liveColor(livePreview.strengthScore)}55`,
+                  }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Validation feedback */}
         <AnimatePresence>

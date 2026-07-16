@@ -11,17 +11,25 @@ import ThreatActorProfile from "@/app/components/ThreatActorProfile";
 import CrackTimeVisualizer from "@/app/components/CrackTimeVisualizer";
 import SkullConfetti from "@/app/components/SkullConfetti";
 import BatchProcessor from "@/app/components/BatchProcessor";
+import PasswordGenerator from "@/app/components/PasswordGenerator";
+import TrustPanel from "@/app/components/TrustPanel";
 import AnimatedBackground from "@/app/components/AnimatedBackground";
 import type { PasswordCharacteristics } from "@/lib/passwordAnalyzer";
-import { analyzePasswordDNA, type DNASegment } from "@/lib/passwordAnalyzer";
-import { ensurePuterReady } from "@/lib/puterAuth";
+import { analyzePassword, analyzePasswordDNA, type DNASegment } from "@/lib/passwordAnalyzer";
+import { checkPasswordBreach } from "@/lib/hibpClient";
+import { maskPassword } from "@/lib/passwordUtils";
+import { streamObituary } from "@/lib/obituaryClient";
 import type { ToneOption } from "@/lib/types";
+
+type AppMode = "single" | "batch" | "generator";
 
 interface AnalysisData {
   breachCount: number;
   characteristics: PasswordCharacteristics;
   maskedPassword: string;
   dnaSegments?: DNASegment[];
+  hashPrefix?: string;
+  breachCheckFailed?: boolean;
 }
 
 interface GraveyardEntry {
@@ -30,8 +38,6 @@ interface GraveyardEntry {
   alive: boolean;
   timestamp: number;
 }
-
-// Puter global type is declared in lib/puterAuth.ts
 
 /* ── Custom SVG logo (skull + key) ── */
 function LogoSVG() {
@@ -381,9 +387,9 @@ function ToneSelector({ tone, setTone }: { tone: ToneOption; setTone: (t: ToneOp
   );
 }
 
-/* ── Mode Switcher (Single vs Batch) ── */
-function ModeSwitcher({ mode, setMode }: { mode: "single" | "batch"; setMode: (m: "single" | "batch") => void }) {
-  const modes: { id: "single" | "batch"; label: string; icon: React.ReactNode; desc: string }[] = [
+/* ── Mode Switcher (Single / Batch / Generator) ── */
+function ModeSwitcher({ mode, setMode }: { mode: AppMode; setMode: (m: AppMode) => void }) {
+  const modes: { id: AppMode; label: string; icon: React.ReactNode; desc: string }[] = [
     {
       id: "single",
       label: "Single Audit",
@@ -406,7 +412,18 @@ function ModeSwitcher({ mode, setMode }: { mode: "single" | "batch"; setMode: (m
           <line x1="16" y1="17" x2="8" y2="17" />
         </svg>
       ),
-      desc: "Audit up to 100 passwords",
+      desc: "Audit up to 100",
+    },
+    {
+      id: "generator",
+      label: "Generator",
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      ),
+      desc: "Forge a strong one",
     },
   ];
 
@@ -426,29 +443,24 @@ function ModeSwitcher({ mode, setMode }: { mode: "single" | "batch"; setMode: (m
             aria-selected={mode === m.id}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className={`relative flex-1 flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl text-xs font-medium transition-colors duration-200 cursor-pointer z-10 ${
-              mode === m.id
-                ? "text-[#e8e8ea]"
-                : "text-[#71717a] hover:text-[#a1a1aa]"
+            className={`relative flex-1 flex items-center justify-center gap-2 py-3 px-2 rounded-xl text-xs font-medium transition-colors duration-200 cursor-pointer z-10 ${
+              mode === m.id ? "text-[#e8e8ea]" : "text-[#71717a] hover:text-[#a1a1aa]"
             }`}
           >
+            {mode === m.id && (
+              <motion.div
+                layoutId="mode-pill"
+                className="absolute inset-0 rounded-xl bg-[#dc262612] border border-[#dc262640] shadow-[0_0_16px_#dc262615] -z-10"
+                transition={{ type: "spring", stiffness: 400, damping: 32 }}
+              />
+            )}
             <span className={mode === m.id ? "text-[#dc2626]" : "text-[#52525b]"}>{m.icon}</span>
             <div className="flex flex-col items-start">
-              <span className="font-semibold text-[11px] tracking-wide">{m.label}</span>
-              <span className="text-[9px] opacity-60 hidden sm:block">{m.desc}</span>
+              <span className="font-semibold text-[11px] tracking-wide whitespace-nowrap">{m.label}</span>
+              <span className="text-[9px] opacity-60 hidden sm:block whitespace-nowrap">{m.desc}</span>
             </div>
           </motion.button>
         ))}
-        {/* Animated pill indicator */}
-        <motion.div
-          className="absolute top-1.5 bottom-1.5 rounded-xl bg-[#dc262612] border border-[#dc262640] shadow-[0_0_16px_#dc262615]"
-          layout
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          style={{
-            width: "calc(50% - 6px)",
-            left: mode === "single" ? "6px" : "calc(50% + 0px)",
-          }}
-        />
       </div>
     </motion.div>
   );
@@ -521,6 +533,83 @@ function PasswordDNA({ segments }: { segments: DNASegment[] }) {
   );
 }
 
+/* ── AI engine status badge (transparency: free, no-signup, offline-capable) ── */
+function AIEngineBadge({ engine, streaming }: { engine: "pollinations" | "local" | null; streaming: boolean }) {
+  const isAI = engine === "pollinations";
+  const label = streaming && !engine
+    ? "Composing…"
+    : isAI
+    ? "Written by Pollinations AI"
+    : "Written by the local engine";
+  const color = streaming && !engine ? "#71717a" : isAI ? "#10b981" : "#f59e0b";
+
+  return (
+    <div className="flex items-center justify-center mb-3">
+      <span
+        className="inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest px-2.5 py-1 rounded-full border backdrop-blur-sm"
+        style={{ color, borderColor: `${color}35`, backgroundColor: `${color}0d` }}
+        title="Free & open — no API key, no account, no cost. Falls back to a fully local engine when offline."
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }} />
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* ── Live network-transparency proof (shows exactly what was sent) ── */
+function NetworkTransparency({ hashPrefix, failed }: { hashPrefix?: string; failed?: boolean }) {
+  if (failed) {
+    return (
+      <motion.div
+        className="w-full max-w-lg mx-auto mt-6"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <div className="flex items-start gap-2.5 rounded-xl border border-[#f59e0b25] bg-[#f59e0b08] px-3.5 py-2.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0 mt-0.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span className="text-[11px] text-[#c9a25a] leading-relaxed">
+            The breach database couldn&apos;t be reached, so the breach count is unavailable — but your strength analysis ran <strong className="text-[#f59e0b]">fully offline on your device</strong>. Your password was never sent anywhere.
+          </span>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!hashPrefix) return null;
+
+  return (
+    <motion.div
+      className="w-full max-w-lg mx-auto mt-6"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+    >
+      <div className="rounded-xl border border-[#10b98122] bg-[#0a120f]/70 px-3.5 py-3">
+        <div className="flex items-center gap-2 mb-2">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#10b981]">Verified: what left your device</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-[#8a9a92]">Only this hash prefix was sent to HIBP:</span>
+          <code className="text-[12px] font-mono font-bold tracking-wider text-[#10b981] bg-[#10b98110] border border-[#10b98125] rounded-md px-2 py-0.5">
+            {hashPrefix}<span className="text-[#3f6b58]">••••••••••••••••••••••••••••••••••••</span>
+          </code>
+        </div>
+        <p className="text-[10px] text-[#6b8a7a] mt-2 leading-relaxed">
+          Your password and the remaining 35 characters of its hash never left this browser. Watch it yourself in DevTools → Network.
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [obituary, setObituary] = useState("");
@@ -533,7 +622,8 @@ export default function Home() {
   const [tone, setTone] = useState<ToneOption>("victorian");
   const [lastPassword, setLastPassword] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
-  const [mode, setMode] = useState<"single" | "batch">("single");
+  const [mode, setMode] = useState<AppMode>("single");
+  const [aiEngine, setAiEngine] = useState<"pollinations" | "local" | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   /** Get or create a shared AudioContext (avoids browser cap of ~6 contexts) */
@@ -647,25 +737,30 @@ export default function Home() {
       setPasswordAlive(false);
       setIsStreaming(true);
       setLastPassword(password);
+      setAiEngine(null);
 
       try {
-        const response = await fetch("/api/check-password", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password, tone }),
-        });
+        // ── Everything below runs IN THE BROWSER. The raw password is never
+        // sent to our server; only a 5-char SHA-1 prefix goes to HIBP. ──
 
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || "Failed to analyze password");
+        // 1. Local strength analysis + masking + DNA (no network at all)
+        const characteristics = analyzePassword(password);
+        const maskedPassword = maskPassword(password);
+        const dnaSegments = analyzePasswordDNA(password);
+
+        // 2. Breach check via HIBP k-anonymity, directly from the browser
+        let breachCount = 0;
+        let hashPrefix = "";
+        let breachCheckFailed = false;
+        try {
+          const breach = await checkPasswordBreach(password);
+          breachCount = breach.breachCount;
+          hashPrefix = breach.hashPrefix;
+        } catch {
+          breachCheckFailed = true; // network/CORS issue — analysis still valid
         }
 
-        const data = await response.json();
-        const { breachCount, characteristics, systemPrompt, userPrompt, maskedPassword } = data;
-
-        // Compute DNA segments client-side
-        const dnaSegments = analyzePasswordDNA(password);
-        setAnalysisData({ breachCount, characteristics, maskedPassword, dnaSegments });
+        setAnalysisData({ breachCount, characteristics, maskedPassword, dnaSegments, hashPrefix, breachCheckFailed });
         setTotalChecked((c) => c + 1);
 
         const alive = characteristics.strengthScore >= 80 && breachCount === 0;
@@ -694,28 +789,12 @@ export default function Home() {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 5000);
 
-        await ensurePuterReady();
-        if (!globalThis.puter) throw new Error("AI service is unavailable. Please refresh the page.");
-
-        const stream = await globalThis.puter.ai.chat(
-          [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          {
-            model: "gemini-2.0-flash",
-            stream: true,
-            temperature: 0.8,
-          }
+        // Stream the obituary from our own route (Pollinations AI → local fallback)
+        await streamObituary(
+          { tone, characteristics, breachCount },
+          (text) => setObituary(text),
+          (engine) => setAiEngine(engine)
         );
-
-        let fullText = "";
-        for await (const part of stream) {
-          if (part?.text) {
-            fullText += part.text;
-            setObituary(fullText);
-          }
-        }
 
         setIsStreaming(false);
       } catch (err) {
@@ -849,6 +928,11 @@ export default function Home() {
         </AnimatePresence>
       </motion.div>
 
+      {/* Trust & privacy — how we prove your password never leaves your device */}
+      <div className="relative z-10 w-full">
+        <TrustPanel />
+      </div>
+
       {/* Mode Switcher */}
       <div className="relative z-10 w-full">
         <ModeSwitcher mode={mode} setMode={setMode} />
@@ -889,6 +973,7 @@ export default function Home() {
                   setIsStreaming(false);
                   setShowConfetti(false);
                   setLastPassword("");
+                  setAiEngine(null);
                 }}
               />
             </motion.div>
@@ -908,6 +993,22 @@ export default function Home() {
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           >
             <BatchProcessor visible={true} tone={tone} setTone={setTone} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Generator Mode Content */}
+      <AnimatePresence mode="wait">
+        {mode === "generator" && (
+          <motion.div
+            key="generator-mode"
+            className="relative z-10 w-full"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <PasswordGenerator />
           </motion.div>
         )}
       </AnimatePresence>
@@ -938,6 +1039,12 @@ export default function Home() {
             aria-live="polite"
             aria-label="Password analysis results"
           >
+            {/* Network transparency proof — exactly what left the device */}
+            <NetworkTransparency
+              hashPrefix={analysisData.hashPrefix}
+              failed={analysisData.breachCheckFailed}
+            />
+
             {/* Strength Meter */}
             <motion.div
               className="w-full"
@@ -948,6 +1055,7 @@ export default function Home() {
               <StrengthMeter
                 score={analysisData.characteristics.strengthScore}
                 crackTime={analysisData.characteristics.estimatedCrackTime}
+                entropyBits={analysisData.characteristics.entropyBits}
                 visible={true}
               />
             </motion.div>
@@ -1046,6 +1154,9 @@ export default function Home() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
           >
+            <div className="w-full max-w-2xl mx-auto">
+              <AIEngineBadge engine={aiEngine} streaming={isStreaming} />
+            </div>
             <ObituaryCard
               obituary={obituary}
               breachCount={analysisData?.breachCount ?? 0}
@@ -1093,7 +1204,7 @@ export default function Home() {
 
       {/* Security Tips Ticker */}
       <AnimatePresence>
-        {analysisData && (
+        {mode === "single" && analysisData && (
           <motion.div
             className="fixed bottom-0 left-0 right-0 z-40 overflow-hidden"
             initial={{ opacity: 0, y: 20 }}
@@ -1109,7 +1220,7 @@ export default function Home() {
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
                     {tip}
-                    <span className="text-[#dc262630] mx-2">///</span>
+                    <span className="text-[#dc262630] mx-2">{"///"}</span>
                   </span>
                 ))}
               </div>
@@ -1126,12 +1237,31 @@ export default function Home() {
         transition={{ duration: 0.6, delay: 0.5 }}
       >
         <div className="h-px w-40 mx-auto bg-gradient-to-r from-transparent via-[#dc262640] to-transparent mb-6" />
-        <div className="flex items-center justify-center gap-2 text-[11px] text-[#71717a] tracking-wide">
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 text-[11px] text-[#71717a] tracking-wide px-4">
           <span>Built with</span>
           <span className="text-[#dc2626]">&#9829;</span>
           <span>using Next.js</span>
           <span className="text-[#dc262660]">&bull;</span>
-          <span>Powered by HIBP & Puter AI</span>
+          <span>Powered by HIBP &amp; Pollinations AI</span>
+        </div>
+        <div className="mt-2.5 flex flex-wrap items-center justify-center gap-2 text-[10px]">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#10b98108] border border-[#10b98120] text-[#10b981]">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+            100% Free
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#dc262608] border border-[#dc262620] text-[#a1a1aa]">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            No Sign-up
+          </span>
+          <a
+            href="https://github.com/suryanarayanrenjith/DeadCredentials"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#111114] border border-[#1e1e24] text-[#a1a1aa] hover:text-[#e8e8ea] hover:border-[#2a2a34] transition-colors duration-200"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2c-3.2.7-3.88-1.54-3.88-1.54-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.68 0-1.25.45-2.28 1.19-3.08-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.08 0 4.41-2.69 5.38-5.25 5.67.41.35.78 1.05.78 2.12v3.14c0 .31.21.68.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z" /></svg>
+            Open Source
+          </a>
         </div>
         {graveyard.length > 0 && (
           <motion.div

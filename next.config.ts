@@ -15,12 +15,17 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://api.pwnedpasswords.com https://*.puter.com",
-              "frame-src https://*.puter.com",
+              // The browser talks to our own origin and, for breach checks,
+              // directly to HIBP's k-anonymity range API (only a 5-char hash
+              // prefix — never the password). Pollinations is called server-side.
+              "connect-src 'self' https://api.pwnedpasswords.com",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
             ].join("; "),
           },
         ],
